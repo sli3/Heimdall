@@ -16,8 +16,6 @@ build/
 # Config — contains credentials and server details
 config.toml
 opencode.json
-config.example.toml
-requirements.txt
 
 # Reports and data — generated output, not source
 reports/
