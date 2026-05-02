@@ -1,6 +1,6 @@
 ---
 name: session-memo
-description: Summarise the current session and save a timestamped memo to .session-memos/ in the project root. Triggers on "memo", "memo this was a [Type] session", "save session", "summarise session", or "end session".
+description: Summarise the current session and save a timestamped memo. Triggers ONLY on "memo", "save session", "summarise session", or "memo this was a [Type] session". Never triggers automatically.
 ---
 
 ## Session Memo Protocol

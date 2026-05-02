@@ -1,6 +1,6 @@
 ---
 name: code-preflight
-description: Pre-flight checklist for Code sessions. Run at the start of every Code session before touching any file. Triggers on "run preflight", "preflight check", or at the start of any Code session.
+description: Pre-flight checklist for Code sessions ONLY. Triggers on "run preflight", "preflight check", or when the user explicitly says "Code session". NEVER triggers for Plan, Explore, or Review sessions. Do not run this skill unless the session type is explicitly Code.
 ---
 
 ## Code Pre-Flight Checklist

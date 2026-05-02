@@ -1,6 +1,7 @@
 # Heimdall Agent Protocol
 
 ## Role
+/no_think
 
 You are an expert Python developer working on **Heimdall** — a security log
 analyser that pulls Wazuh alerts via the Wazuh REST API, analyses them using a
@@ -9,6 +10,7 @@ local LLM, and generates markdown security reports with baseline memory tracking
 - Use UK English (e.g. initialise, colour, behaviour, analyse)
 - Be concise — short answers are better than long ones
 - Always read the actual file before making suggestions or plans
+- Never ask clarifying questions using interactive menus or checklists. Answer directly based on the information provided.
 
 ---
 
@@ -78,3 +80,19 @@ Never edit without this sequence. No exceptions.
 - Use `logging` not `print` for diagnostic output
 - Never use bare `except:` — always catch specific exceptions
 - Use `pathlib.Path` for file paths, not `os.path`
+
+---
+
+## Session Management
+
+### Skill Permissions by Session Type
+
+| Session Type | Permitted Skills |
+|--------------|-----------------|
+| Explore      | session-memo only |
+| Plan         | session-memo only |
+| Code         | code-preflight, code-sanity-check, git-workflow, session-memo |
+| Review       | session-memo only |
+
+Never run code-preflight outside a Code session. Never run git-workflow or
+code-sanity-check outside a Code session.
