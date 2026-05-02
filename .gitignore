@@ -16,6 +16,7 @@ build/
 # Config — contains credentials and server details
 config.toml
 opencode.json
+docs/yubaba-server-reference.md
 
 # Reports and data — generated output, not source
 reports/

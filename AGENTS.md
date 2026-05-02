@@ -106,3 +106,7 @@ code-sanity-check outside a Code session.
 
 `@local-reviewer` is read-only and runs on the local yubaba inference server.
 It may only be invoked manually by the user — never triggered automatically.
+
+## Roadmap
+Future planned features are documented in `docs/HEIMDALL_ROADMAP.md`.
+Read this at the start of any Plan session for a new feature.
