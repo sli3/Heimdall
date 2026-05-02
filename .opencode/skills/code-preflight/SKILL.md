@@ -8,9 +8,9 @@ description: Pre-flight checklist for Code sessions ONLY. Triggers on "run prefl
 ### Steps
 
 1. **Read session memo:**
-   ```bash
+```bash
    ls -t .session-memos/*.md | head -1
-   ```
+```
    Summarise in one sentence what this Code session is supposed to do.
 
 2. **Check previous mistakes** — look for `## Mistakes Made` in memo:
@@ -34,17 +34,19 @@ description: Pre-flight checklist for Code sessions ONLY. Triggers on "run prefl
 
    Do not touch any file until user says yes.
 
+7. **Remind user of post-edit sequence:**
+   > "After the edit is done: run `@local-reviewer` on the changed function,
+   > then `code-sanity-check`, then `git-workflow`."
+
 ---
 
 ### Checklist Output Format
-
-```
 Pre-Flight Check:
 ✅ Memo read — [one line summary]
 ✅ Previous mistakes reviewed — [none / list]
 ✅ Scope confirmed — changing [function] in [file] only
 ✅ Plan shown — waiting for your OK
-```
+✅ Post-edit sequence noted — @local-reviewer → sanity-check → git-workflow
 
 ---
 
@@ -54,3 +56,4 @@ Pre-Flight Check:
 - Never edit before user says OK
 - If scope is unclear, ask — do not guess
 - Always acknowledge previous mistakes before proceeding
+- Never invoke @local-reviewer yourself — remind the user to do it manually

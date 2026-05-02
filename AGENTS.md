@@ -96,3 +96,13 @@ Never edit without this sequence. No exceptions.
 
 Never run code-preflight outside a Code session. Never run git-workflow or
 code-sanity-check outside a Code session.
+
+### Subagent Permissions by Session Type
+
+| Session Type | Permitted Subagents |
+|--------------|---------------------|
+| Code         | `@local-reviewer` — after edit, before git-workflow |
+| All others   | None |
+
+`@local-reviewer` is read-only and runs on the local yubaba inference server.
+It may only be invoked manually by the user — never triggered automatically.
