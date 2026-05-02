@@ -1,0 +1,24 @@
+[wazuh]
+host = "YOUR_WAZUH_MANAGER_IP"
+port = 55000
+user = "YOUR_WAZUH_API_USER"
+password = "YOUR_WAZUH_API_PASSWORD"
+
+# Wazuh Indexer (OpenSearch) — usually same host, port 9200
+indexer_host = "YOUR_WAZUH_INDEXER_IP"
+indexer_port = 9200
+indexer_user = "admin"
+indexer_password = "YOUR_INDEXER_PASSWORD"
+
+[llm]
+base_url = "http://YOUR_LLAMA_CPP_SERVER_IP:8080/v1"
+api_key = "local"
+model = "Qwen3"
+temperature = 0.3
+max_tokens = 1024
+
+[reports]
+output_dir = "reports"
+
+[baseline]
+path = "data/baseline_state.json"
