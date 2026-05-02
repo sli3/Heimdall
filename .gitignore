@@ -1,0 +1,35 @@
+# OpenCode — session memos are working notes, not part of the codebase
+.session-memos/
+node_modules/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Config — contains credentials and server details
+config.toml
+opencode.json
+
+# Reports and data — generated output, not source
+reports/
+data/mitre_attack.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
