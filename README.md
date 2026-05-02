@@ -2,7 +2,7 @@
 
 A local-first security log analyser that pulls alerts from the Wazuh REST API,
 analyses them using a local LLM (Qwen3 via llama.cpp), and generates structured
-markdown security reports with baseline memory tracking.
+markdown security reports with baseline memory tracking and historical trending.
 
 > Named after Heimdall, the Norse watchman — guardian of Bifröst, ever-vigilant
 > against threats.
@@ -11,7 +11,7 @@ markdown security reports with baseline memory tracking.
 
 ## What It Does
 
-- Connects to the **Wazuh REST API** to pull security alerts by time range,
+- Connects to the **Wazuh Indexer (OpenSearch)** to pull security alerts by time range,
   agent, or severity level
 - Analyses alert patterns using a **local Qwen3 8B model** — no data leaves
   your network
@@ -19,6 +19,8 @@ markdown security reports with baseline memory tracking.
   recommended actions
 - Maintains a **baseline memory** of normal behaviour so repeated noise is
   distinguished from genuine alerts
+- Tracks **historical alert trends** per rule group — surfaces slow-burn threats
+  that single-run baseline comparison misses
 - Runs on a local homelab — designed for self-hosted Wazuh deployments
 
 ---
@@ -27,10 +29,11 @@ markdown security reports with baseline memory tracking.
 
 ```
 heimdall.py          # Entry point — CLI and orchestration
-wazuh_client.py      # Wazuh REST API client (auth, alert fetch, pagination)
+wazuh_client.py      # Wazuh Indexer (OpenSearch) REST API client
 analyser.py          # LLM analysis via llama.cpp OpenAI-compatible API
 reporter.py          # Markdown report generation
 baseline.py          # Baseline memory persistence (JSON store)
+trending.py          # Historical trend analysis and anomaly detection
 ```
 
 ---
@@ -39,8 +42,8 @@ baseline.py          # Baseline memory persistence (JSON store)
 
 | Dependency | Purpose |
 |------------|---------|
-| Python 3.11+ | Runtime |
-| `requests` | Wazuh REST API calls |
+| Python 3.11+ | Runtime (tomllib requires 3.11+) |
+| `requests` | Wazuh Indexer REST API calls |
 | `openai` | llama.cpp OpenAI-compatible client |
 | Wazuh 4.x | Alert source (self-hosted) |
 | llama.cpp server | Local LLM inference (Qwen3 8B) |
@@ -57,6 +60,14 @@ cd Heimdall
 ```
 
 ### 2. Create a virtual environment
+
+```bash
+uv venv --python 3.11
+source .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+Or with standard venv:
 
 ```bash
 python3 -m venv .venv
@@ -78,11 +89,20 @@ cp config.example.toml config.toml
 | `wazuh.port` | Wazuh API port (default: 55000) |
 | `wazuh.user` | Wazuh API username |
 | `wazuh.password` | Wazuh API password |
+| `wazuh.indexer_host` | Wazuh Indexer (OpenSearch) IP — often same as manager |
+| `wazuh.indexer_port` | Indexer port (default: 9200) |
+| `wazuh.indexer_user` | Indexer username (default: admin) |
+| `wazuh.indexer_password` | Indexer password |
 | `llm.base_url` | llama.cpp server URL (e.g. `http://yubaba:8080/v1`) |
 | `llm.model` | Model ID served by llama.cpp (e.g. `Qwen3`) |
 | `llm.api_key` | Any string — llama.cpp does not validate |
 | `reports.output_dir` | Where to write markdown reports |
-| `baseline.store_path` | Path to the baseline JSON file |
+| `baseline.path` | Path to the baseline JSON file |
+
+> **Note:** The Wazuh Indexer must be accessible on port 9200 from the machine
+> running Heimdall. If your indexer is bound to localhost only, update
+> `network.host` in `/etc/wazuh-indexer/opensearch.yml` to `0.0.0.0` and
+> restart the indexer service.
 
 ### 4. Run
 
@@ -95,22 +115,24 @@ python heimdall.py --hours 24
 ## Usage
 
 ```
-usage: heimdall.py [-h] [--hours N] [--agent AGENT] [--level LEVEL] [--report-only]
+usage: heimdall.py [-h] [--config CONFIG] [--hours N] [--agent AGENT]
+                   [--level LEVEL] [--log-level LEVEL] [--report-only]
 
 options:
+  --config PATH    Path to config file (default: config.toml)
   --hours N        Analyse alerts from the last N hours (default: 24)
   --agent AGENT    Filter to a specific agent name or ID
   --level LEVEL    Minimum alert level to include (default: 7)
-  --report-only    Generate report from last fetch without re-querying Wazuh
+  --log-level      Logging verbosity: DEBUG, INFO, WARNING, ERROR (default: INFO)
+  --report-only    Generate report from last baseline without re-querying Wazuh
 ```
 
 ### Example output
 
 ```
-[2026-04-24 08:15] Fetching alerts from Wazuh (last 24h, level ≥ 7)...
-[2026-04-24 08:15] 342 alerts retrieved — 18 above baseline threshold
-[2026-04-24 08:16] LLM analysis complete
-[2026-04-24 08:16] Report written to reports/2026-04-24_security_report.md
+2026-05-02 18:18:00 - INFO - Fetched 9984 alerts from Wazuh Indexer
+2026-05-02 18:18:00 - INFO - Updated baseline with 2 findings
+2026-05-02 18:18:01 - INFO - Report written to reports/2026-05-02_security_report.md
 ```
 
 ---
@@ -120,20 +142,60 @@ options:
 Reports are saved to the `reports/` directory as markdown files, named by date.
 Each report contains:
 
-- **Executive summary** — overall threat posture for the period
-- **Alert breakdown** — grouped by rule group and severity
-- **Anomalies** — alerts that deviate from the established baseline
-- **Top offenders** — most active source IPs and agents
-- **Recommended actions** — LLM-generated response suggestions
+- **Summary** — overall threat posture for the period
+- **Findings** — LLM-identified threats and patterns grouped by rule group
+- **Recommendations** — LLM-generated response suggestions
 
 ---
 
 ## Baseline Memory
 
-Heimdall tracks a rolling baseline of normal alert volumes per rule group. On
-each run, the current counts are compared to the baseline. Alerts in categories
-that are significantly above their normal rate are flagged as anomalies in the
-report. The baseline is stored as a JSON file and updated after each run.
+Heimdall tracks a baseline of findings and recommendations from previous runs.
+On each run, the current analysis updates the baseline. The `--report-only` flag
+generates a report from the last saved baseline without querying Wazuh or the LLM.
+
+The baseline is stored as a JSON file at the path configured in `config.toml`.
+
+---
+
+## Historical Trending
+
+`trending.py` tracks per-rule-group alert volumes across runs and detects
+slow-burn threats that single-run baseline comparison misses.
+
+- Each run appends a timestamped snapshot of rule group counts to the scan history
+- `trending.py` reads the history over a configurable rolling window (default 30 days)
+- Rule groups with consistently increasing counts across 3+ consecutive runs are
+  flagged as anomalies with a ⚠️ marker
+- Output is a markdown table embedded in the main report or written as a
+  standalone `reports/trending_YYYY-MM-DD.md`
+
+> **Note:** Historical Trending is implemented but not yet wired into the main
+> pipeline. `baseline.py` scan history schema extension and `heimdall.py`
+> integration are in progress.
+
+---
+
+## Roadmap
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Historical Trending | 🔧 In progress | `trending.py` written — baseline schema extension and wiring pending |
+| MITRE ATT&CK Tagging | 📋 Planned | `mitre_sync.py` + prompt injection — fully offline after initial sync |
+| Multi-Model Routing | 📋 Planned | Two-pass pipeline — Qwen2.5-Coder triage → Qwen3 deep analysis (sequential, 12GB VRAM constraint) |
+
+Full design notes for each feature are in [`docs/HEIMDALL_ROADMAP.md`](docs/HEIMDALL_ROADMAP.md).
+
+---
+
+## Inference Server
+
+Heimdall is designed to run against a dedicated local llama.cpp inference node
+running Qwen3 8B. All LLM calls are made over the local LAN via the
+OpenAI-compatible REST API. No data is sent to any cloud service.
+
+See [`docs/yubaba-server-reference.md`](docs/yubaba-server-reference.md) for
+the full server specification (gitignored — contains local network details).
 
 ---
 
@@ -149,23 +211,18 @@ Heimdall/
 ├── analyser.py
 ├── reporter.py
 ├── baseline.py
+├── trending.py
 ├── config.example.toml
 ├── requirements.txt
-├── AGENTS.md                    # OpenCode agent instructions
-├── opencode.json                # OpenCode config (local model + MCP)
+├── docs/
+│   └── HEIMDALL_ROADMAP.md
+├── AGENTS.md
+├── opencode.json
 ├── .gitignore
-├── .session-memos/              # Gitignored working notes
+├── .session-memos/          # Gitignored working notes
 └── .opencode/
-    └── skills/                  # Huginn skills (preflight, memo, git, etc.)
+    └── skills/
 ```
-
----
-
-## Inference Server
-
-Heimdall is designed to run against [yubaba](docs/yubaba-server-reference.md) —
-a dedicated local llama.cpp inference node running Qwen3 8B. All LLM calls are
-made over the local LAN. No data is sent to any cloud service.
 
 ---
 
