@@ -8,6 +8,9 @@ import wazuh_client
 import analyser
 import reporter
 import baseline
+import trending
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -50,7 +53,14 @@ def main() -> None:
 
     alerts = wazuh.fetch_alerts(hours=args.hours, agent=args.agent, level=args.level)
     analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"])
-    baseline_mgr.update(analysis)
+    baseline_mgr.update(analysis, rule_counts=None)
+
+    # Wire up Trending calls after each run
+    trending_cfg = config.get("trending", {})
+    if trending_cfg:
+        trend_tracker = trending.Trending(trending_cfg)
+        baseline_data = baseline_mgr.load()
+        trend_tracker.generate(baseline_data)
 
     rep = reporter.Reporter(config["reports"])
     rep.generate(analysis)
