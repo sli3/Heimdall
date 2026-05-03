@@ -102,9 +102,14 @@ code-sanity-check outside a Code session.
 | Session Type | Permitted Subagents |
 |--------------|---------------------|
 | Code         | `@local-reviewer` — after edit, before git-workflow |
+| Code         | `@minimax-reviewer` — after edit, before git-workflow |
 | All others   | None |
 
 `@local-reviewer` is read-only and runs on the local yubaba inference server.
+It may only be invoked manually by the user — never triggered automatically.
+
+`@minimax-reviewer` is read-only and runs via MiniMax M2.5 (OpenCode built-in provider).
+Use when Qwen3.5 is the build agent and yubaba is unavailable for a second pass.
 It may only be invoked manually by the user — never triggered automatically.
 
 ## Roadmap
