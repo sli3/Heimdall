@@ -98,6 +98,25 @@ def _summarise_alerts(alerts: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def extract_rule_counts(alerts: list[dict[str, Any]]) -> dict[str, int]:
+    """
+    Extract per-rule-group alert counts from raw alerts.
+
+    Args:
+        alerts: List of alert dicts from wazuh_client.fetch_alerts()
+
+    Returns:
+        Dict mapping rule description to alert count.
+    """
+    rule_counts: dict[str, int] = {}
+    for alert in alerts:
+        source = alert.get("_source", {})
+        rule = source.get("rule", {})
+        description = rule.get("description", "Unknown")
+        rule_counts[description] = rule_counts.get(description, 0) + 1
+    return rule_counts
+
+
 def _parse_analysis(text: str) -> dict[str, Any]:
     """Parse LLM response into structured dict."""
     findings: list[str] = []
