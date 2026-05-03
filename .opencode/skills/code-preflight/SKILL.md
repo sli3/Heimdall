@@ -37,7 +37,7 @@ description: Pre-flight checklist for Code sessions ONLY. Triggers on "run prefl
    Do not touch any file until user says yes.
 
 7. **Remind user of post-edit sequence:**
-   > "After the edit is done: run `@local-reviewer` on the changed function,
+   > "After the edit is done: run `@minimax-reviewer` on the changed function,
    > then `code-sanity-check`, then `git-workflow`."
 
 ---
@@ -48,7 +48,7 @@ Pre-Flight Check:
 ✅ Previous mistakes reviewed — [none / list]
 ✅ Scope confirmed — changing [function] in [file] only
 ✅ Plan shown — waiting for your OK
-✅ Post-edit sequence noted — @local-reviewer → sanity-check → git-workflow
+✅ Post-edit sequence noted — @minimax-reviewer → sanity-check → git-workflow
 
 ---
 
@@ -58,4 +58,4 @@ Pre-Flight Check:
 - Never edit before user says OK
 - If scope is unclear, ask — do not guess
 - Always acknowledge previous mistakes before proceeding
-- Never invoke @local-reviewer yourself — remind the user to do it manually
+- Never invoke @minimax-reviewer yourself — remind the user to do it manually
