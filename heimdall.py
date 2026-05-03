@@ -53,7 +53,7 @@ def main() -> None:
 
     alerts = wazuh.fetch_alerts(hours=args.hours, agent=args.agent, level=args.level)
     analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"])
-    baseline_mgr.update(analysis, rule_counts=None)
+    baseline_mgr.update(analysis, rule_counts=analyser.extract_rule_counts(alerts))
 
     # Wire up Trending calls after each run
     trending_cfg = config.get("trending", {})
