@@ -63,7 +63,7 @@ Error Handling: [Passed / Concerns — list]
 Idempotency:    [Passed / Concern — description]
 Local Reviewer Output:
 ──────────────────────────────────
-[bullet points from @local-reviewer]
+[bullet points from @minimax-reviewer]
 Result: ✅ Ready for git-workflow / ⚠️ Issues found — review before proceeding
 
 ---
@@ -71,7 +71,7 @@ Result: ✅ Ready for git-workflow / ⚠️ Issues found — review before proce
 ### Rules
 
 - Never modify the file during a sanity check — report only
-- Never skip the @local-reviewer step if syntax passes
+- Never skip the @minimax-reviewer step if syntax passes
 - Never proceed to git-workflow without explicit Yes from the user
 - If syntax fails, stop at step 1 — do not run logic checks or reviewer
 - Always run this before git-workflow on a Code session
