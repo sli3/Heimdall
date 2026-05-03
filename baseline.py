@@ -33,9 +33,9 @@ class Manager:
                 logger.info(f"Loaded baseline from {self._path}")
             except json.JSONDecodeError as e:
                 logger.warning(f"Failed to decode baseline, starting fresh: {e}")
-                self._baseline = {"findings": [], "recommendations": []}
+                self._baseline = {"findings": [], "recommendations": [], "scan_history": []}
         else:
-            self._baseline = {"findings": [], "recommendations": []}
+            self._baseline = {"findings": [], "recommendations": [], "scan_history": []}
 
     def load(self) -> dict[str, Any]:
         """
@@ -46,12 +46,17 @@ class Manager:
         """
         return self._baseline
 
-    def update(self, analysis: dict[str, Any]) -> None:
+    def update(
+        self, 
+        analysis: dict[str, Any], 
+        rule_counts: dict[str, int] | None = None
+    ) -> None:
         """
         Update baseline with new analysis results.
 
         Args:
             analysis: Analysis dict from analyser.analyse().
+            rule_counts: Optional dict of rule-group counts for this run.
         """
         findings = analysis.get("findings", [])
         recommendations = analysis.get("recommendations", [])
@@ -62,6 +67,13 @@ class Manager:
 
         if recommendations:
             self._baseline["recommendations"] = recommendations
+
+        if rule_counts:
+            snapshot = {
+                "timestamp": datetime.now().isoformat(),
+                "rule_groups": rule_counts
+            }
+            self._baseline.setdefault("scan_history", []).append(snapshot)
 
         self._save()
         logger.info(f"Updated baseline with {len(findings)} findings")
