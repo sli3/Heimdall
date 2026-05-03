@@ -35,11 +35,14 @@ description: Logic and syntax verification for Python code. Run when user says "
    Look for operations that would fail or corrupt state on a second run.
 
 5. **Second-pass review**
-   Invoke `@local-reviewer` on the changed file or function:
-   > "@local-reviewer review the change to [file.py]"
+   Invoke `@minimax-reviewer` on the changed file or function:
+   > "@minimax-reviewer review the change to [file.py]"
 
    Wait for the reviewer output before continuing.
    Present the reviewer findings beneath the sanity check report.
+
+   <!-- @local-reviewer available as alternative when yubaba is free:
+   "@local-reviewer review the change to [file.py]" -->
 
 6. **Approval gate**
    After presenting both the sanity check report and the reviewer output, ask:
