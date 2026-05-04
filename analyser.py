@@ -2,7 +2,9 @@
 analyser.py — LLM-based security alert analysis via OpenAI-compatible REST API.
 """
 
+import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from openai import OpenAI
@@ -11,7 +13,31 @@ from openai import APIConnectionError, APIStatusError
 logger = logging.getLogger(__name__)
 
 
-def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: dict[str, Any]) -> dict[str, Any]:
+def _load_mitre_tactics(path: str) -> list[dict[str, Any]]:
+    """Load MITRE tactics from local JSON file."""
+    try:
+        with Path(path).open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("tactics", [])
+    except FileNotFoundError:
+        logger.warning(f"MITRE tactics file not found: {path}")
+        return []
+
+
+def _build_mitre_reference(tactics: list[dict[str, Any]]) -> str:
+    """Build compact MITRE tactic reference for prompt."""
+    parts = []
+    for tactic in tactics:
+        name = tactic.get("name", "Unknown")
+        shortname = tactic.get("shortname", "")
+        if shortname:
+            parts.append(f"{name} ({shortname})")
+        else:
+            parts.append(name)
+    return ", ".join(parts)
+
+
+def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: dict[str, Any], mitre_config: dict[str, Any] | None = None) -> dict[str, Any]:
     """
     Analyse security alerts using a remote LLM server.
 
@@ -19,6 +45,7 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
         alerts: List of alert dicts from wazuh_client.fetch_alerts()
         baseline: Previous baseline data from baseline.Manager.load()
         llm_config: LLM config section with base_url, api_key, model, etc.
+        mitre_config: MITRE ATT&CK config section with path and sync_source (optional)
 
     Returns:
         Analysis dict with summary, findings, and recommendations.
@@ -32,7 +59,13 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
         api_key=llm_config["api_key"],
     )
 
-    prompt = _build_prompt(alerts, baseline)
+    # Load MITRE ATT&CK tactic reference for prompt context
+    mitre_config = mitre_config or {}
+    mitre_tactics_path = mitre_config.get("path", "data/mitre_attack.json")
+    mitre_data = _load_mitre_tactics(mitre_tactics_path)
+    mitre_context = _build_mitre_reference(mitre_data)
+
+    prompt = _build_prompt(alerts, baseline, mitre_context)
 
     try:
         response = client.chat.completions.create(
@@ -52,8 +85,8 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
     return _parse_analysis(analysis_text)
 
 
-def _build_prompt(alerts: list[dict[str, Any]], baseline: dict[str, Any]) -> str:
-    """Build prompt with alert summary and baseline context."""
+def _build_prompt(alerts: list[dict[str, Any]], baseline: dict[str, Any], mitre_context: str = "") -> str:
+    """Build prompt with alert summary, baseline context, and MITRE ATT&CK reference."""
     alert_summary = _summarise_alerts(alerts)
 
     baseline_context = ""
@@ -66,6 +99,8 @@ Recent alerts:
 {alert_summary}
 
 {baseline_context}
+
+MITRE ATT&CK Tactics: {mitre_context}
 
 Provide your analysis in this format:
 <findings>

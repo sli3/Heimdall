@@ -52,7 +52,8 @@ def main() -> None:
         return
 
     alerts = wazuh.fetch_alerts(hours=args.hours, agent=args.agent, level=args.level)
-    analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"])
+    mitre_config = config.get("mitre") if "mitre" in config else None
+    analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"], mitre_config)
     baseline_mgr.update(analysis, rule_counts=analyser.extract_rule_counts(alerts))
 
     # Wire up Trending calls after each run
