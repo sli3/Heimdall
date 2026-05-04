@@ -103,6 +103,7 @@ code-sanity-check outside a Code session.
 |--------------|---------------------|
 | Code         | `@local-reviewer` — after edit, before git-workflow |
 | Code         | `@minimax-reviewer` — after edit, before git-workflow |
+| Plan         | `@plan-reviewer` — after preflight shows plan, before OK |
 | All others   | None |
 
 `@local-reviewer` is read-only and runs on the local yubaba inference server.
