@@ -32,7 +32,7 @@ class Reporter:
             data: Analysis or baseline dict with summary, findings, recommendations.
             trends: Optional trending markdown to append to report.
         """
-        report = self._build_report(data trends=trends)
+        report = self._build_report(data, trends=trends)
         filename = self._output_dir / f"{datetime.now().strftime('%Y-%m-%d')}_security_report.md"
         with filename.open("w") as f:
             f.write(report)
