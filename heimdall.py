@@ -56,14 +56,15 @@ def main() -> None:
     baseline_mgr.update(analysis, rule_counts=analyser.extract_rule_counts(alerts))
 
     # Wire up Trending calls after each run
+    trends_output = None
     trending_cfg = config.get("trending", {})
     if trending_cfg:
         trend_tracker = trending.Trending(trending_cfg)
         baseline_data = baseline_mgr.load()
-        trend_tracker.generate(baseline_data)
+        trends_output = trend_tracker.generate(baseline_data)
 
     rep = reporter.Reporter(config["reports"])
-    rep.generate(analysis)
+    rep.generate(analysis, trends=trends_output)
 
 
 if __name__ == "__main__":

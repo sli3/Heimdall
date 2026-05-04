@@ -5,7 +5,7 @@ reporter.py — Markdown security report generation.
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 
 logger = logging.getLogger(__name__)
@@ -24,12 +24,13 @@ class Reporter:
         self._output_dir = Path(config["output_dir"])
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
-    def generate(self, data: dict[str, Any]) -> None:
+    def generate(self, data: dict[str, Any], trends: Optional[str] = None) -> None:
         """
         Generate markdown report from analysis data.
 
         Args:
             data: Analysis or baseline dict with summary, findings, recommendations.
+            trends: Optional trending markdown to append to report.
         """
         report = self._build_report(data)
         filename = self._output_dir / f"{datetime.now().strftime('%Y-%m-%d')}_security_report.md"
@@ -71,6 +72,9 @@ class Reporter:
                 lines.append(f"- {rec}")
         else:
             lines.append("*No recommendations*")
+
+        if trends:
+            lines.extend(["", trends])
 
         lines.append("")
         return "\n".join(lines)
