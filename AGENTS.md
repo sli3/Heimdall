@@ -101,9 +101,10 @@ code-sanity-check outside a Code session.
 
 | Session Type | Permitted Subagents |
 |--------------|---------------------|
+| Plan         | `@plan-reviewer` — after preflight shows plan, before OK |
 | Code         | `@local-reviewer` — after edit, before git-workflow |
 | Code         | `@minimax-reviewer` — after edit, before git-workflow |
-| Plan         | `@plan-reviewer` — after preflight shows plan, before OK |
+| Code         | `@code-reviewer` — after edit, for deep function review |
 | All others   | None |
 
 `@local-reviewer` is read-only and runs on the local yubaba inference server.
