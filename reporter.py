@@ -87,7 +87,7 @@ class Reporter:
                 tactic = tag.get("tactic", "Unknown")
                 description = tag.get("description", "No description")
                 lines.append(f"| {tactic} | {description} |")
-            lines.extend(["", ""])
+            lines.append("")
 
         if trends:
             lines.extend(["", trends])

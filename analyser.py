@@ -72,7 +72,9 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
             model=llm_config["model"],
             messages=[{"role": "user", "content": prompt}],
             temperature=llm_config.get("temperature", 0.3),
-            max_tokens=llm_config.get("max_tokens", 1024),
+            max_tokens=llm_config.get("max_tokens", 8192),
+            presence_penalty=0.0,
+            frequency_penalty=0.0,
         )
     except APIConnectionError as e:
         logger.error(f"Failed to connect to LLM server: {e}")
@@ -82,6 +84,10 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
         raise
 
     analysis_text = response.choices[0].message.content.strip()
+    ## For debugging DO NOT REMOVE ##
+    logger.debug(f"Raw API response: {response.choices[0].message.content!r}")
+    logger.debug(f"Raw LLM response: {analysis_text[:1000]}")
+    ##################################
     return _parse_analysis(analysis_text)
 
 
@@ -161,6 +167,10 @@ def _parse_analysis(text: str) -> dict[str, Any]:
     findings: list[str] = []
     recommendations: list[str] = []
     mitre_tags: list[dict[str, str]] = []
+    
+    ## For debugging DO NOT REMOVE ##
+    logger.debug(f"Raw LLM response: {text[:1000]}")
+    ##################################
 
     current_section: str | None = None
     for line in text.split("\n"):
