@@ -13,6 +13,8 @@ description: Secure Git workflow with review gates and UK English commit standar
    ```
    Report which files are staged, modified, or untracked.
    If unexpected files are staged, stop and ask the user to review.
+   If any new files created this session appear as **Untracked**, 
+   stage them along with modified files — do not leave new files uncommitted.
 
 2. **Review Gate**
    ```bash
