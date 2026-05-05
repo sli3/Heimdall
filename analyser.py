@@ -110,7 +110,11 @@ Provide your analysis in this format:
 <recommendations>
 - Recommendation 1
 - Recommendation 2
-</recommendations>"""
+</recommendations>
+<mitre_tags>
+- Tactic/Technique: Alert description
+- Tactic/Technique: Alert description
+</mitre_tags>"""
 
 
 def _summarise_alerts(alerts: list[dict[str, Any]]) -> str:
@@ -156,6 +160,7 @@ def _parse_analysis(text: str) -> dict[str, Any]:
     """Parse LLM response into structured dict."""
     findings: list[str] = []
     recommendations: list[str] = []
+    mitre_tags: list[dict[str, str]] = []
 
     current_section: str | None = None
     for line in text.split("\n"):
@@ -168,13 +173,23 @@ def _parse_analysis(text: str) -> dict[str, Any]:
             current_section = "recommendations"
         elif line.startswith("</recommendations>"):
             current_section = None
+        elif line.startswith("<mitre_tags>"):
+            current_section = "mitre_tags"
+        elif line.startswith("</mitre_tags>"):
+            current_section = None
         elif line.startswith("- ") and current_section == "findings":
             findings.append(line[2:])
         elif line.startswith("- ") and current_section == "recommendations":
             recommendations.append(line[2:])
+        elif line.startswith("- ") and current_section == "mitre_tags":
+            tag_text = line[2:]
+            if ":" in tag_text:
+                tactic, description = tag_text.split(":", 1)
+                mitre_tags.append({"tactic": tactic.strip(), "description": description.strip()})
 
     return {
         "summary": text[:200] + "..." if len(text) > 200 else text,
         "findings": findings,
         "recommendations": recommendations,
+        "mitre_tags": mitre_tags,
     }

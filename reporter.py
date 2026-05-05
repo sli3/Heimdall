@@ -73,6 +73,22 @@ class Reporter:
         else:
             lines.append("*No recommendations*")
 
+        # MITRE ATT&CK Tags section
+        mitre_tags = data.get("mitre_tags", [])
+        if mitre_tags:
+            lines.extend([
+                "",
+                "## MITRE ATT&CK Tags",
+                "",
+                "| Tactic | Description |",
+                "|--------|-------------|"
+            ])
+            for tag in mitre_tags:
+                tactic = tag.get("tactic", "Unknown")
+                description = tag.get("description", "No description")
+                lines.append(f"| {tactic} | {description} |")
+            lines.extend(["", ""])
+
         if trends:
             lines.extend(["", trends])
 
