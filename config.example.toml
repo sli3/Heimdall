@@ -28,3 +28,9 @@ path = "data/baseline_state.json"
 window_days = 30
 # Write standalone trending_YYYY-MM-DD.md report
 output_standalone = false
+
+[mitre]
+# Path to local MITRE ATT&CK dataset (JSON format)
+path = "data/mitre_attack.json"
+# MITRE ATT&CK dataset source URL
+sync_source = "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json"
