@@ -19,7 +19,7 @@ local LLM, and generates markdown security reports with baseline memory tracking
 | Key | Value |
 |-----|-------|
 | Main entry point | `main.py` |
-| Key modules | `heimdall/wazuh_client.py`, `heimdall/analyser.py`, `heimdall/reporter.py`, `heimdall/baseline.py`, `heimdall/trending.py` |
+| Key modules | `heimdall/wazuh_client.py`, `heimdall/analyser.py`, `heimdall/reporter.py`, `heimdall/baseline.py`, `heimdall/trending.py`, `heimdall/embedder.py` |
 | Standalone scripts | `scripts/mitre_sync.py` |
 | Language | Python 3.11+ |
 | Target | Ubuntu Server 24.04 |
@@ -88,11 +88,15 @@ Never edit without this sequence. No exceptions.
 |--------------|-----------------|
 | Explore      | session-memo only |
 | Plan         | session-memo only |
-| Code         | code-preflight, code-sanity-check, git-workflow, session-memo |
-| Review       | session-memo only |
+| Code         | code-preflight, code-sanity-check, code-reviewer, bug-hunt-loop, git-workflow, session-memo |
+| Review       | code-reviewer, session-memo |
+| Debug        | deep-bug-analysis, bug-hunt-loop, session-memo |
 
-Never run code-preflight outside a Code session. Never run git-workflow or
-code-sanity-check outside a Code session.
+Never run code-preflight outside a Code session.
+Never run git-workflow or code-sanity-check outside a Code session.
+Never run deep-bug-analysis outside a Debug session.
+Never invoke bug-hunt-loop without running deep-bug-analysis first,
+except for trivial one-liner errors (syntax, typo, missing import).
 
 ### Subagent Permissions by Session Type
 
@@ -102,9 +106,10 @@ code-sanity-check outside a Code session.
 | Code         | `@local-reviewer` — after edit, before git-workflow |
 | Code         | `@minimax-reviewer` — after edit, before git-workflow |
 | Code         | `@code-reviewer` — after edit, for deep function review |
+| Debug        | `@deep-bug-hunter` — invoked by deep-bug-analysis skill before bug-hunt-loop |
 | All others   | None |
 
-`@local-reviewer` — read-only, runs on the local yubaba inference server.
+`@local-reviewer` — read-only, runs on yubaba (Qwen3).
 Invoke manually only — never trigger automatically.
 
 `@minimax-reviewer` — read-only, runs via MiniMax M2.5 (OpenCode built-in provider).
@@ -116,6 +121,9 @@ Invoke manually only — never trigger automatically.
 
 `@code-reviewer` — read-only, deep function review after an edit.
 Invoke manually only — never trigger automatically.
+
+`@deep-bug-hunter` — read-only, runs on yubaba (Qwen3.6-35B).
+Invoked by deep-bug-analysis skill only — never invoke directly.
 
 ---
 
