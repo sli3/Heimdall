@@ -1,19 +1,19 @@
+"""
+main.py — Heimdall Security Log Analyser entry point.
+"""
 import argparse
 import logging
 import sys
 import tomllib
 from pathlib import Path
 
-import wazuh_client
-import analyser
-import reporter
-import baseline
-import trending
+from heimdall import wazuh_client, analyser, reporter, baseline, trending
 
 logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    """Main entry point for Heimdall."""
     parser = argparse.ArgumentParser(description="Heimdall Security Log Analyser")
     parser.add_argument("--config", default="config.toml", help="Path to config file")
     parser.add_argument("--hours", type=int, default=24, help="Lookback window in hours")
@@ -47,22 +47,24 @@ def main() -> None:
     wazuh = wazuh_client.Client(config["wazuh"])
 
     if args.report_only:
+        trends_output = None
+        if "trending" in config:
+            trend_mgr = trending.Trending(config["trending"])
+            trends_output = trend_mgr.generate(baseline_mgr.load())
         rep = reporter.Reporter(config["reports"])
-        rep.generate(baseline_mgr.load())
+        rep.generate(baseline_mgr.load(), trends=trends_output)
         return
 
     alerts = wazuh.fetch_alerts(hours=args.hours, agent=args.agent, level=args.level)
+
     mitre_config = config.get("mitre") if "mitre" in config else None
     analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"], mitre_config)
     baseline_mgr.update(analysis, rule_counts=analyser.extract_rule_counts(alerts))
 
-    # Wire up Trending calls after each run
     trends_output = None
-    trending_cfg = config.get("trending", {})
-    if trending_cfg:
-        trend_tracker = trending.Trending(trending_cfg)
-        baseline_data = baseline_mgr.load()
-        trends_output = trend_tracker.generate(baseline_data)
+    if "trending" in config:
+        trend_mgr = trending.Trending(config["trending"])
+        trends_output = trend_mgr.generate(baseline_mgr.load())
 
     rep = reporter.Reporter(config["reports"])
     rep.generate(analysis, trends=trends_output)

@@ -18,8 +18,9 @@ local LLM, and generates markdown security reports with baseline memory tracking
 
 | Key | Value |
 |-----|-------|
-| Main entry point | `heimdall.py` |
-| Key modules | `wazuh_client.py`, `analyser.py`, `reporter.py`, `baseline.py` |
+| Main entry point | `main.py` |
+| Key modules | `heimdall/wazuh_client.py`, `heimdall/analyser.py`, `heimdall/reporter.py`, `heimdall/baseline.py`, `heimdall/trending.py` |
+| Standalone scripts | `scripts/mitre_sync.py` |
 | Language | Python 3.11+ |
 | Target | Ubuntu Server 24.04 |
 | Git repo | git@github.com:sli3/Heimdall.git |
@@ -64,14 +65,6 @@ Never edit without this sequence. No exceptions.
 
 ---
 
-## Session Management
-
-- Run the **code-preflight** skill at the start of every Code session
-- To find the latest memo: `ls -t .session-memos/*.md | head -1`
-- When context is getting full, suggest saving the session memo
-
----
-
 ## Python Style
 
 - Follow PEP 8
@@ -84,6 +77,10 @@ Never edit without this sequence. No exceptions.
 ---
 
 ## Session Management
+
+- Run the **code-preflight** skill at the start of every Code session
+- To find the latest memo: `ls -t .session-memos/*.md | head -1`
+- When context is getting full, suggest saving the session memo
 
 ### Skill Permissions by Session Type
 
@@ -107,13 +104,22 @@ code-sanity-check outside a Code session.
 | Code         | `@code-reviewer` — after edit, for deep function review |
 | All others   | None |
 
-`@local-reviewer` is read-only and runs on the local yubaba inference server.
-It may only be invoked manually by the user — never triggered automatically.
+`@local-reviewer` — read-only, runs on the local yubaba inference server.
+Invoke manually only — never trigger automatically.
 
-`@minimax-reviewer` is read-only and runs via MiniMax M2.5 (OpenCode built-in provider).
-Use when Qwen3.5 is the build agent and yubaba is unavailable for a second pass.
-It may only be invoked manually by the user — never triggered automatically.
+`@minimax-reviewer` — read-only, runs via MiniMax M2.5 (OpenCode built-in provider).
+Use when yubaba is unavailable for a second pass.
+Invoke manually only — never trigger automatically.
+
+`@plan-reviewer` — read-only, reviews proposed plans before OK is given.
+Invoke manually only — never trigger automatically.
+
+`@code-reviewer` — read-only, deep function review after an edit.
+Invoke manually only — never trigger automatically.
+
+---
 
 ## Roadmap
+
 Future planned features are documented in `docs/HEIMDALL_ROADMAP.md`.
 Read this at the start of any Plan session for a new feature.
