@@ -198,7 +198,7 @@ def _parse_analysis(text: str) -> dict[str, Any]:
                 mitre_tags.append({"tactic": tactic.strip(), "description": description.strip()})
 
     return {
-        "summary": text[:200] + "..." if len(text) > 200 else text,
+        "summary": findings[0][:200] + "..." if findings and len(findings[0]) > 200 else findings[0] if findings else "No summary available",
         "findings": findings,
         "recommendations": recommendations,
         "mitre_tags": mitre_tags,
