@@ -26,7 +26,7 @@ The base project is complete. All modules are working end-to-end:
 | Historical Trending | ✅ Complete | `trending.py` wired into main pipeline |
 | MITRE ATT&CK Tagging | ✅ Complete | Tactic reference injected into LLM prompt, tags in report |
 | Multi-Model Routing | ~~Superseded~~ | See note below |
-| Embedding Model | 📋 Next | Semantic memory and alert retrieval |
+| Embedding Model | 📋 In Progress | Session 1 complete — embedder.py done |
 
 ---
 
@@ -117,7 +117,41 @@ entirely. Semantic search solves both problems.
   baseline is not removed until vector retrieval is proven stable
 - Evaluate whether 0.6B embedding quality is sufficient before considering 4B upgrade
 
-**New files/changes:**
+---
+
+**Implementation Sessions:**
+
+- **Session 1 — embedder.py** ✅ Complete
+  - New module: ChromaDB connection, llama.cpp embeddings endpoint, `add_embedding()` and `query_similar()` methods
+  - Out of scope: all other files
+
+- **Session 2 — baseline.py + config** ← Current
+  - Extend `Manager.__init__()` to accept optional `embedder` parameter and store as `self._embedder`
+  - Extend `Manager.update()` to call `self._embedder.add_embedding()` when embedder is present
+  - Add `[embeddings]` section to `config.example.toml`
+  - Add `chromadb` to `requirements.txt`
+  - Out of scope: `retrieve_similar()`, `analyser.py`, `main.py`, `embedder.py` (read only)
+
+- **Session 3 — analyser.py**
+  - Update `_build_prompt()` to accept and inject retrieved similar incidents context
+  - Add `retrieve_similar()` call before prompt construction
+  - Out of scope: `baseline.py`, `main.py`, `embedder.py`
+
+- **Session 4 — main.py wiring**
+  - Instantiate `Embedder` from config
+  - Pass embedder instance to `Baseline.Manager` constructor
+  - Wire retrieval into the main analysis pipeline
+  - Out of scope: any changes to `baseline.py`, `analyser.py`, or `embedder.py`
+
+- **Session 5 — config + requirements final pass**
+  - Verify all config keys match what the code reads
+  - Update `config.example.toml` if any keys drifted during earlier sessions
+  - Update `README.md` or docs if needed
+  - Out of scope: any logic changes
+
+---
+
+**New files/changes (full feature):**
 - `embedder.py` — new module: connects to llama.cpp embeddings endpoint, encodes
   alert clusters, manages ChromaDB collection
 - `baseline.py` — extend to write embeddings on update, add `retrieve_similar()`
@@ -134,7 +168,7 @@ entirely. Semantic search solves both problems.
 1. ~~Historical Trending~~ — Complete ✅
 2. ~~MITRE ATT&CK Tagging~~ — Complete ✅
 3. ~~Multi-Model Routing~~ — Superseded ✅
-4. **Embedding Model** — Next
+4. **Embedding Model** — In Progress
 
 ---
 
@@ -158,4 +192,4 @@ entirely. Semantic search solves both problems.
 
 ---
 
-*Created: 2026-05-01 — last updated: 2026-05-06*
+*Created: 2026-05-01 — last updated: 2026-05-07*
