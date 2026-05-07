@@ -59,3 +59,5 @@ Pre-Flight Check:
 - If scope is unclear, ask — do not guess
 - Always acknowledge previous mistakes before proceeding
 - Never invoke @minimax-reviewer yourself — remind the user to do it manually
+- Never touch files outside the stated scope — if another file needs changing, STOP and report back to the user before proceeding
+- Never create any file before the user says OK
