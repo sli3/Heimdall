@@ -88,8 +88,8 @@ Never edit without this sequence. No exceptions.
 |--------------|-----------------|
 | Explore      | session-memo only |
 | Plan         | session-memo only |
-| Code         | code-preflight, code-sanity-check, code-reviewer, bug-hunt-loop, git-workflow, session-memo |
-| Review       | code-reviewer, session-memo |
+| Code         | code-preflight, code-sanity-check, cloud-reviewer, bug-hunt-loop, git-workflow, session-memo |
+| Review       | cloud-reviewer, session-memo |
 | Debug        | deep-bug-analysis, bug-hunt-loop, session-memo |
 
 Never run code-preflight outside a Code session.
@@ -104,22 +104,17 @@ except for trivial one-liner errors (syntax, typo, missing import).
 |--------------|---------------------|
 | Plan         | `@plan-reviewer` — after preflight shows plan, before OK |
 | Code         | `@local-reviewer` — after edit, before git-workflow |
-| Code         | `@minimax-reviewer` — after edit, before git-workflow |
-| Code         | `@code-reviewer` — after edit, for deep function review |
-| Debug        | `@deep-bug-hunter` — invoked by deep-bug-analysis skill before bug-hunt-loop |
+| Code         | `@cloud-reviewer` — after edit, for deep function review |
+| Debug        | `@deep-bug-hunter` — invoked by deep-bug-analysis skill only |
 | All others   | None |
 
 `@local-reviewer` — read-only, runs on yubaba (Qwen3).
 Invoke manually only — never trigger automatically.
 
-`@minimax-reviewer` — read-only, runs via MiniMax M2.5 (OpenCode built-in provider).
-Use when yubaba is unavailable for a second pass.
-Invoke manually only — never trigger automatically.
-
 `@plan-reviewer` — read-only, reviews proposed plans before OK is given.
 Invoke manually only — never trigger automatically.
 
-`@code-reviewer` — read-only, deep function review after an edit.
+`@cloud-reviewer` — read-only, deep function review after an edit. Runs via openrouter/qwen/qwen3-coder:free.
 Invoke manually only — never trigger automatically.
 
 `@deep-bug-hunter` — read-only, runs on yubaba (Qwen3.6-35B).

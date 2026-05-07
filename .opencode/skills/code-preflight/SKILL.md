@@ -37,7 +37,7 @@ description: Pre-flight checklist for Code sessions ONLY. Triggers on "run prefl
    Do not touch any file until user says yes.
 
 7. **Remind user of post-edit sequence:**
-   > "After the edit is done: run `@minimax-reviewer` on the changed function,
+   > "After the edit is done: run `@cloud-reviewer` on the changed function,
    > then `code-sanity-check`, then `git-workflow`."
 
 ---
@@ -46,9 +46,9 @@ description: Pre-flight checklist for Code sessions ONLY. Triggers on "run prefl
 Pre-Flight Check:
 ✅ Memo read — [one line summary]
 ✅ Previous mistakes reviewed — [none / list]
-✅ Scope confirmed — changing [function] in [file] only
+✅ Scope confirmed: [file1.py, file2.toml] (colon + explicit file list, no em dash)
 ✅ Plan shown — waiting for your OK
-✅ Post-edit sequence noted — @minimax-reviewer → sanity-check → git-workflow
+✅ Post-edit sequence noted — @cloud-reviewer → sanity-check → git-workflow
 
 ---
 
@@ -58,6 +58,6 @@ Pre-Flight Check:
 - Never edit before user says OK
 - If scope is unclear, ask — do not guess
 - Always acknowledge previous mistakes before proceeding
-- Never invoke @minimax-reviewer yourself — remind the user to do it manually
+- Never invoke @cloud-reviewer yourself — remind the user to do it manually
 - Never touch files outside the stated scope — if another file needs changing, STOP and report back to the user before proceeding
 - Never create any file before the user says OK
