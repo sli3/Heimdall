@@ -26,7 +26,7 @@ The base project is complete. All modules are working end-to-end:
 | Historical Trending | ✅ Complete | `trending.py` wired into main pipeline |
 | MITRE ATT&CK Tagging | ✅ Complete | Tactic reference injected into LLM prompt, tags in report |
 | Multi-Model Routing | ~~Superseded~~ | See note below |
-| Embedding Model | 📋 In Progress | Sessions 1–4 complete — Session 5 pending |
+| Embedding Model | 🔄 Validation | All 5 sessions complete — awaiting run 2 to confirm retrieval |
 
 ---
 
@@ -143,15 +143,30 @@ entirely. Semantic search solves both problems.
   - Wire retrieval into the main analysis pipeline
   - Out of scope: any changes to `baseline.py`, `analyser.py`, or `embedder.py`
 
-- **Session 5 — config + requirements final pass** ← Current
-  - Verify all config keys match what the code reads
-  - Update `config.example.toml` if any keys drifted during earlier sessions
-  - Update `README.md` or docs if needed
+- **Session 5 — config + requirements final pass** ✅ Complete
+  - Verified `config.example.toml` `[embeddings]` section has correct keys
+  - Verified `chromadb` present in `requirements.txt`
+  - Updated `README.md` — added chromadb to requirements table, port 8081 server entry, `[embeddings]` config keys section
+  - ⚠️ **Manual step required:** `config.example.toml` is the template — any new `[embeddings]` section must be manually copied into the live `config.toml` by the user. The agent never touches `config.toml` as it contains credentials.
   - Out of scope: any logic changes
 
 ---
 
-**New files/changes (full feature):**
+**Validation Status:**
+
+- Run 1 completed — alerts embedded into ChromaDB, no retrieval output yet (empty vector store on first run, expected)
+- Run 2 required to confirm "Similar past incidents" context appears in LLM prompt and report
+- If retrieval output is absent after run 2, check logs for `embed`, `chroma`, `similar`, `retriev` keywords
+
+**Operational Notes:**
+
+- Embedding server (`start-embed`) must be started before running Heimdall
+- Use `--ctx-size 512 --n-gpu-layers 0` on the embedding server — keeps VRAM footprint to ~564 MiB
+- Do not use `--ub` flag — invalid on current llama.cpp build
+- VRAM budget with both servers running: ~8.6GB / 12GB (3.6GB headroom)
+- `[embeddings]` section must be present in live `config.toml` — agent only updates `config.example.toml`
+
+---
 - `heimdall/embedder.py` — new module: connects to llama.cpp embeddings endpoint, encodes
   alert clusters, manages ChromaDB collection
 - `heimdall/baseline.py` — extend to write embeddings on update, add `retrieve_similar()`
@@ -179,7 +194,7 @@ entirely. Semantic search solves both problems.
 | Inference server | yubaba (llama.cpp b9037, OpenAI-compatible API) |
 | GPU | RTX 3060 12GB VRAM |
 | CPU | Intel i7-1260P, 16GB RAM |
-| OS | Ubuntu Server 24.04 LTS, NVIDIA driver 580.159.03, CUDA 13.1 |
+| OS | Ubuntu Server 24.04 LTS, NVIDIA driver 580.159.03, CUDA 13.0 |
 | API endpoint (main) | `http://<yubaba-ip>:8080/v1` |
 | API endpoint (embeddings) | `http://<yubaba-ip>:8081/v1` |
 | Model — analysis | `Qwen3.6-35B-A3B` (~2.8GB VRAM, ~7-8GB RAM experts, ~17 t/s) |
