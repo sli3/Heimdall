@@ -7,7 +7,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from heimdall import wazuh_client, analyser, reporter, baseline, trending
+from heimdall import wazuh_client, analyser, reporter, baseline, trending, embedder as embedder_module
 
 logger = logging.getLogger(__name__)
 
@@ -38,27 +38,38 @@ def main() -> None:
         logging.critical(f"Invalid config file: {e}")
         sys.exit(1)
 
+    # NEW: Load embeddings config section (optional) and instantiate Embedder
+    embedder_config = config.get("embeddings") if "embeddings" in config else None
+    embedder = embedder_module.Embedder(embedder_config) if embedder_config else None
+
     for section in ("wazuh", "llm", "reports", "baseline"):
         if section not in config:
             logging.critical(f"Missing required config section: [{section}]")
             sys.exit(1)
 
-    baseline_mgr = baseline.Manager(config["baseline"])
+    # Pass embedder to baseline.Manager constructor  
+    baseline_mgr = baseline.Manager(config["baseline"], embedder=embedder)
     wazuh = wazuh_client.Client(config["wazuh"])
+
+    # NEW: Migrate baseline embeddings on first run (before any conditional branches)
+    if embedder is not None:
+        migrated = embedder.migrate_baseline(baseline_mgr.load())
+        if migrated > 0:
+            logging.info(f"Migrated {migrated} entries to vector store")
 
     if args.report_only:
         trends_output = None
         if "trending" in config:
             trend_mgr = trending.Trending(config["trending"])
             trends_output = trend_mgr.generate(baseline_mgr.load())
+        
         rep = reporter.Reporter(config["reports"])
         rep.generate(baseline_mgr.load(), trends=trends_output)
         return
 
     alerts = wazuh.fetch_alerts(hours=args.hours, agent=args.agent, level=args.level)
 
-    mitre_config = config.get("mitre") if "mitre" in config else None
-    analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"], mitre_config)
+    analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"], embedder=embedder)
     baseline_mgr.update(analysis, rule_counts=analyser.extract_rule_counts(alerts))
 
     trends_output = None
