@@ -58,6 +58,7 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
     client = OpenAI(
         base_url=llm_config["base_url"],
         api_key=llm_config["api_key"],
+        timeout=300.0,
     )
 
     similar_incidents = ""
