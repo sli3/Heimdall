@@ -60,6 +60,37 @@ class Reporter:
         else:
             lines.append("*No findings*")
 
+        # Similar past incidents — context for findings
+        similar = data.get("similar_incidents", "").strip()
+        if similar:
+            lines.extend([
+                "",
+                "## Similar Past Incidents",
+                "",
+                similar,
+                "",
+            ])
+
+        # MITRE ATT&CK Tags — threat classification
+        mitre_tags = data.get("mitre_tags", [])
+        if mitre_tags:
+            lines.extend([
+                "## MITRE ATT&CK Tags",
+                "",
+                "| Tactic | Description |",
+                "|--------|-------------|",
+            ])
+            for tag in mitre_tags:
+                tactic = tag.get("tactic", "Unknown")
+                description = tag.get("description", "No description")
+                lines.append(f"| {tactic} | {description} |")
+            lines.append("")
+
+        # Historical trends — supporting data
+        if trends:
+            lines.extend(["", trends])
+
+        # Recommendations last — actions flow from all evidence above
         lines.extend([
             "",
             "## Recommendations",
@@ -72,25 +103,6 @@ class Reporter:
                 lines.append(f"- {rec}")
         else:
             lines.append("*No recommendations*")
-
-        # MITRE ATT&CK Tags section
-        mitre_tags = data.get("mitre_tags", [])
-        if mitre_tags:
-            lines.extend([
-                "",
-                "## MITRE ATT&CK Tags",
-                "",
-                "| Tactic | Description |",
-                "|--------|-------------|"
-            ])
-            for tag in mitre_tags:
-                tactic = tag.get("tactic", "Unknown")
-                description = tag.get("description", "No description")
-                lines.append(f"| {tactic} | {description} |")
-            lines.append("")
-
-        if trends:
-            lines.extend(["", trends])
 
         lines.append("")
         return "\n".join(lines)
