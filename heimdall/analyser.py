@@ -37,7 +37,7 @@ def _build_mitre_reference(tactics: list[dict[str, Any]]) -> str:
     return ", ".join(parts)
 
 
-def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: dict[str, Any], embedder=None) -> dict[str, Any]:
+def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: dict[str, Any], embedder=None, mitre_path: str | None = None) -> dict[str, Any]:
     """
     Analyse security alerts using a remote LLM server.
 
@@ -46,6 +46,7 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
         baseline: Previous baseline data from baseline.Manager.load()
         llm_config: LLM config section with base_url, api_key, model, etc.
         embedder: Optional Embedder instance for retrieving similar incidents
+        mitre_path: Optional path to MITRE tactics JSON file
 
     Returns:
         Analysis dict with summary, findings, and recommendations.
@@ -64,7 +65,13 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
         query_text = _summarise_alerts(alerts)
         similar = embedder.retrieve_similar(query_text)
         if similar:
-            similar_incidents = f"\nSimilar past incidents:\n{similar}"
+            formatted = []
+            for item in similar:
+                summary = item.get("summary", "")
+                timestamp = item.get("timestamp", "")
+                severity = item.get("severity", "")
+                formatted.append(f"- {timestamp} ({severity}): {summary}")
+            similar_incidents = f"\nSimilar past incidents:\n" + "\n".join(formatted)
 
     prompt = _build_prompt(alerts, baseline, similar_incidents=similar_incidents)
 
@@ -89,7 +96,15 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
     logger.debug(f"Raw API response: {response.choices[0].message.content!r}")
     logger.debug(f"Raw LLM response: {analysis_text[:1000]}")
     ##################################
-    return _parse_analysis(analysis_text)
+
+    tactics = []
+    if mitre_path and Path(mitre_path).exists():
+        try:
+            tactics = _load_mitre_tactics(mitre_path)
+        except Exception as e:
+            logger.warning(f"Failed to load MITRE tactics: {e}")
+
+    return _parse_analysis(analysis_text, tactics=tactics)
 
 
 def _build_prompt(alerts: list[dict[str, Any]], baseline: dict[str, Any], 
@@ -101,6 +116,10 @@ def _build_prompt(alerts: list[dict[str, Any]], baseline: dict[str, Any],
     if baseline.get("findings"):
         baseline_context = f"Previous baseline findings: {', '.join(baseline['findings'][:3])}"
 
+    mitre_reference = ""
+    if tactics:
+        mitre_reference = f"\n\nMITRE ATT&CK Tactics ({_build_mitre_reference(tactics)}):\n"
+
     return f"""You are a security analyst. Analyse these Wazuh alerts and provide findings.
 
 Recent alerts:
@@ -109,6 +128,11 @@ Recent alerts:
 {baseline_context}
 
 {similar_incidents}
+
+MITRE ATT&CK Tags format (use tactics from reference above):
+<mitre_tags>
+- MITRE Tactic: Description of the attack technique
+</mitre_tags>
 
 Provide your analysis in this format:
 <findings>
@@ -160,11 +184,21 @@ def extract_rule_counts(alerts: list[dict[str, Any]]) -> dict[str, int]:
     return rule_counts
 
 
-def _parse_analysis(text: str) -> dict[str, Any]:
+def _parse_analysis(text: str, tactics: list[dict[str, Any]] = []) -> dict[str, Any]:
     """Parse LLM response into structured dict."""
     findings: list[str] = []
     recommendations: list[str] = []
     mitre_tags: list[dict[str, str]] = []
+
+    # Build tactic lookup for parsing
+    tactic_lookup: dict[str, str] = {}
+    for t in tactics:
+        name = t.get("name", "")
+        shortname = t.get("shortname", "")
+        if shortname:
+            tactic_lookup[shortname] = f"{name} ({shortname})"
+        else:
+            tactic_lookup[name.lower()] = name
     
     ## For debugging DO NOT REMOVE ##
     logger.debug(f"Raw LLM response: {text[:1000]}")
@@ -192,8 +226,13 @@ def _parse_analysis(text: str) -> dict[str, Any]:
         elif line.startswith("- ") and current_section == "mitre_tags":
             tag_text = line[2:]
             if ":" in tag_text:
-                tactic, description = tag_text.split(":", 1)
-                mitre_tags.append({"tactic": tactic.strip(), "description": description.strip()})
+                # Try to match tactic name from LLM response against known tactics
+                tactic_part = tag_text.split(":", 1)[0].strip()
+                description = tag_text.split(":", 1)[1].strip()
+                
+                # Look up full tactic name
+                matched_tactic = tactic_lookup.get(tactic_part.lower(), tactic_part)
+                mitre_tags.append({"tactic": matched_tactic, "description": description})
 
     return {
         "summary": findings[0][:200] + "..." if findings and len(findings[0]) > 200 else findings[0] if findings else "No summary available",
