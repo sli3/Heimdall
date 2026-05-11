@@ -9,13 +9,13 @@
 
 The base project is complete. All modules are working end-to-end:
 
-- `heimdall.py` — entry point and orchestration
-- `wazuh_client.py` — Wazuh Indexer (OpenSearch) REST API client
-- `analyser.py` — LLM analysis via Qwen3.6-35B on the local inference server
-- `reporter.py` — markdown report generation
-- `baseline.py` — baseline memory persistence (JSON store)
-- `trending.py` — historical trend analysis and anomaly detection
-- `mitre_sync.py` — MITRE ATT&CK STIX data sync script
+- `main.py` — entry point and orchestration
+- `heimdall/wazuh_client.py` — Wazuh Indexer (OpenSearch) REST API client
+- `heimdall/analyser.py` — LLM analysis via Qwen3.6-35B on the local inference server
+- `heimdall/reporter.py` — markdown report generation
+- `heimdall/baseline.py` — baseline memory persistence (JSON store)
+- `heimdall/trending.py` — historical trend analysis and anomaly detection
+- `scripts/mitre_sync.py` — MITRE ATT&CK STIX data sync script
 
 ---
 
@@ -26,7 +26,7 @@ The base project is complete. All modules are working end-to-end:
 | Historical Trending | ✅ Complete | `trending.py` wired into main pipeline |
 | MITRE ATT&CK Tagging | ✅ Complete | Tactic reference injected into LLM prompt, tags in report |
 | Multi-Model Routing | ~~Superseded~~ | See note below |
-| Embedding Model | 📋 In Progress | Session 1 complete — embedder.py done |
+| Embedding Model | 📋 In Progress | Sessions 1–4 complete — Session 5 pending |
 
 ---
 
@@ -62,7 +62,7 @@ sequential routing necessary no longer apply with MoE expert offload to RAM.
 **What was built:**
 - `trending.py` — trend calculation per rule group, anomaly detection
 - `baseline.py` — extended with `scan_history` schema
-- `heimdall.py` — trending wired into main pipeline
+- `main.py` — trending wired into main pipeline
 - `reporter.py` — Historical Trends table embedded in report
 - `config.example.toml` — `[trending]` section
 
@@ -125,25 +125,25 @@ entirely. Semantic search solves both problems.
   - New module: ChromaDB connection, llama.cpp embeddings endpoint, `add_embedding()` and `query_similar()` methods
   - Out of scope: all other files
 
-- **Session 2 — baseline.py + config** ← Current
+- **Session 2 — baseline.py + config** ✅ Complete
   - Extend `Manager.__init__()` to accept optional `embedder` parameter and store as `self._embedder`
   - Extend `Manager.update()` to call `self._embedder.add_embedding()` when embedder is present
   - Add `[embeddings]` section to `config.example.toml`
   - Add `chromadb` to `requirements.txt`
   - Out of scope: `retrieve_similar()`, `analyser.py`, `main.py`, `embedder.py` (read only)
 
-- **Session 3 — analyser.py**
+- **Session 3 — analyser.py** ✅ Complete
   - Update `_build_prompt()` to accept and inject retrieved similar incidents context
   - Add `retrieve_similar()` call before prompt construction
   - Out of scope: `baseline.py`, `main.py`, `embedder.py`
 
-- **Session 4 — main.py wiring**
+- **Session 4 — main.py wiring** ✅ Complete
   - Instantiate `Embedder` from config
   - Pass embedder instance to `Baseline.Manager` constructor
   - Wire retrieval into the main analysis pipeline
   - Out of scope: any changes to `baseline.py`, `analyser.py`, or `embedder.py`
 
-- **Session 5 — config + requirements final pass**
+- **Session 5 — config + requirements final pass** ← Current
   - Verify all config keys match what the code reads
   - Update `config.example.toml` if any keys drifted during earlier sessions
   - Update `README.md` or docs if needed
@@ -152,10 +152,10 @@ entirely. Semantic search solves both problems.
 ---
 
 **New files/changes (full feature):**
-- `embedder.py` — new module: connects to llama.cpp embeddings endpoint, encodes
+- `heimdall/embedder.py` — new module: connects to llama.cpp embeddings endpoint, encodes
   alert clusters, manages ChromaDB collection
-- `baseline.py` — extend to write embeddings on update, add `retrieve_similar()`
-- `analyser.py` — update `_build_prompt()` to inject retrieved context
+- `heimdall/baseline.py` — extend to write embeddings on update, add `retrieve_similar()`
+- `heimdall/analyser.py` — update `_build_prompt()` to inject retrieved context
 - `config.toml` — add `[embeddings]` section with model ID, endpoint port,
   ChromaDB path, top-N retrieval count
 - `requirements.txt` — add `chromadb`
@@ -192,4 +192,4 @@ entirely. Semantic search solves both problems.
 
 ---
 
-*Created: 2026-05-01 — last updated: 2026-05-07*
+*Created: 2026-05-01 — last updated: 2026-05-11*
