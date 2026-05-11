@@ -61,7 +61,8 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
 
     similar_incidents = ""
     if embedder is not None:
-        similar = embedder.retrieve_similar(alerts)
+        query_text = _summarise_alerts(alerts)
+        similar = embedder.retrieve_similar(query_text)
         if similar:
             similar_incidents = f"\nSimilar past incidents:\n{similar}"
 

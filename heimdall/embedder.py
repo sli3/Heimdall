@@ -14,7 +14,7 @@ from typing import Any
 from uuid import uuid4
 
 import chromadb
-from openai import OpenAI, APIConnectionError, Timeout
+from openai import OpenAI, APIConnectionError, APITimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class Embedder:
         metadata_fields = ["timestamp", "rule_group", "severity", "summary"]
         self._collection = self._client.get_or_create_collection(
             name="alerts",
-            metadata={"hnsw": {"space": "cosine"}},  # ChromaDB default for embeddings
+            metadata={"hnsw:space": "cosine"},
         )
 
     def encode(self, text: str) -> list[float]:
@@ -73,7 +73,7 @@ class Embedder:
                 input=text,
             )
             return response.model_dump()["data"][0]["embedding"]
-        except (ConnectionError, Timeout, ValueError) as e:
+        except (APIConnectionError, APITimeoutError, ValueError) as e:
             logger.error(f"Failed to encode text: {e}")
             raise
 
@@ -196,7 +196,8 @@ class Embedder:
 
         logger.info(f"Migrated {count} entries from baseline to vector store")
         return count
-
+    # Alias for analyser.py compatibility
+    retrieve_similar = query_similar
 
 def load_baseline_embeddings(baseline_path: str) -> dict[str, Any] | None:
     """
