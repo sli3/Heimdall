@@ -45,8 +45,10 @@ trending.py          # Historical trend analysis and anomaly detection
 | Python 3.11+ | Runtime (tomllib requires 3.11+) |
 | `requests` | Wazuh Indexer REST API calls |
 | `openai` | llama.cpp OpenAI-compatible client |
+| `chromadb` | Vector store for semantic alert retrieval |
 | Wazuh 4.x | Alert source (self-hosted) |
-| llama.cpp server | Local LLM inference (Qwen3 8B) |
+| llama.cpp server (port 8080) | Local LLM inference (Qwen3 8B) |
+| llama.cpp server (port 8081) | Embedding model inference (Qwen3-Embedding-0.6B) |
 
 ---
 
@@ -98,6 +100,17 @@ cp config.example.toml config.toml
 | `llm.api_key` | Any string — llama.cpp does not validate |
 | `reports.output_dir` | Where to write markdown reports |
 | `baseline.path` | Path to the baseline JSON file |
+
+### Embedding Model Configuration
+
+Heimdall uses a separate embedding model server for semantic retrieval:
+
+| Key | Description | Example |
+|-----|-------------|---------|
+| `embeddings.endpoint` | URL of the embedding model server | `http://localhost:8081/v1` |
+| `embeddings.model` | Model ID served by the embedding server | `Qwen3-Embedding-0.6B` |
+| `embeddings.chroma_db_path` | Path to ChromaDB vector store | `~/.heimdall/chromadb` |
+| `embeddings.top_k` | Number of similar incidents to retrieve | `5` |
 
 > **Note:** The Wazuh Indexer must be accessible on port 9200 from the machine
 > running Heimdall. If your indexer is bound to localhost only, update
