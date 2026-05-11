@@ -34,3 +34,9 @@ output_standalone = false
 path = "data/mitre_attack.json"
 # MITRE ATT&CK dataset source URL
 sync_source = "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json"
+
+[embeddings]
+endpoint = "http://localhost:8081/v1"
+model = "Qwen3-Embedding-0.6B"
+chroma_db_path = "~/.heimdall/chromadb"
+top_k = 5

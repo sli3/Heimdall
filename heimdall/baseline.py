@@ -14,14 +14,16 @@ logger = logging.getLogger(__name__)
 class Manager:
     """Manages baseline memory persistence."""
 
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any], embedder=None) -> None:
         """
         Initialise baseline manager.
 
         Args:
             config: Baseline config with path key.
+            embedder: Optional Embedder instance for vector store updates.
         """
         self._path = Path(config["path"])
+        self._embedder = embedder
         self._load()
 
     def _load(self) -> None:
@@ -67,6 +69,18 @@ class Manager:
 
         if recommendations:
             self._baseline["recommendations"] = recommendations
+
+        # Add embeddings from rule_counts when embedder is present
+        if self._embedder is not None and rule_counts:
+            for rule_desc, count in rule_counts.items():
+                text = f"{rule_desc}: {count} alerts"
+                metadata = {
+                    "timestamp": datetime.now().isoformat(),
+                    "rule_group": rule_desc,
+                    "severity": "unknown",
+                    "summary": text,
+                }
+                self._embedder.add_embedding(text, metadata)
 
         if rule_counts:
             snapshot = {
