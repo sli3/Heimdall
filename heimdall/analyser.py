@@ -37,7 +37,7 @@ def _build_mitre_reference(tactics: list[dict[str, Any]]) -> str:
     return ", ".join(parts)
 
 
-def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: dict[str, Any], mitre_config: dict[str, Any] | None = None) -> dict[str, Any]:
+def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: dict[str, Any], embedder=None) -> dict[str, Any]:
     """
     Analyse security alerts using a remote LLM server.
 
@@ -45,7 +45,7 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
         alerts: List of alert dicts from wazuh_client.fetch_alerts()
         baseline: Previous baseline data from baseline.Manager.load()
         llm_config: LLM config section with base_url, api_key, model, etc.
-        mitre_config: MITRE ATT&CK config section with path and sync_source (optional)
+        embedder: Optional Embedder instance for retrieving similar incidents
 
     Returns:
         Analysis dict with summary, findings, and recommendations.
@@ -59,13 +59,13 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
         api_key=llm_config["api_key"],
     )
 
-    # Load MITRE ATT&CK tactic reference for prompt context
-    mitre_config = mitre_config or {}
-    mitre_tactics_path = mitre_config.get("path", "data/mitre_attack.json")
-    mitre_data = _load_mitre_tactics(mitre_tactics_path)
-    mitre_context = _build_mitre_reference(mitre_data)
+    similar_incidents = ""
+    if embedder is not None:
+        similar = embedder.retrieve_similar(alerts)
+        if similar:
+            similar_incidents = f"\nSimilar past incidents:\n{similar}"
 
-    prompt = _build_prompt(alerts, baseline, mitre_context)
+    prompt = _build_prompt(alerts, baseline, similar_incidents=similar_incidents)
 
     try:
         response = client.chat.completions.create(
@@ -91,8 +91,9 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
     return _parse_analysis(analysis_text)
 
 
-def _build_prompt(alerts: list[dict[str, Any]], baseline: dict[str, Any], mitre_context: str = "") -> str:
-    """Build prompt with alert summary, baseline context, and MITRE ATT&CK reference."""
+def _build_prompt(alerts: list[dict[str, Any]], baseline: dict[str, Any], 
+                  similar_incidents: str = "") -> str:
+    """Build prompt with alert summary, baseline context, and similar incidents."""
     alert_summary = _summarise_alerts(alerts)
 
     baseline_context = ""
@@ -106,7 +107,7 @@ Recent alerts:
 
 {baseline_context}
 
-MITRE ATT&CK Tactics: {mitre_context}
+{similar_incidents}
 
 Provide your analysis in this format:
 <findings>
@@ -116,11 +117,7 @@ Provide your analysis in this format:
 <recommendations>
 - Recommendation 1
 - Recommendation 2
-</recommendations>
-<mitre_tags>
-- Tactic/Technique: Alert description
-- Tactic/Technique: Alert description
-</mitre_tags>"""
+</recommendations>"""
 
 
 def _summarise_alerts(alerts: list[dict[str, Any]]) -> str:
