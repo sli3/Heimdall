@@ -2,7 +2,7 @@
 name: cloud-reviewer
 description: Deep read-only code reviewer. Reviews a named function against AGENTS.md, latest session memo, and the file itself. Invoke with @cloud-reviewer review [function] in [file].
 mode: subagent
-model: openrouter/qwen/qwen3-coder:free
+model: openrouter-custom/Qwen3-coder-free
 temperature: 0.2
 tools:
   write: false

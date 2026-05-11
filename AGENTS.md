@@ -88,8 +88,8 @@ Never edit without this sequence. No exceptions.
 |--------------|-----------------|
 | Explore      | session-memo only |
 | Plan         | session-memo only |
-| Code         | code-preflight, code-sanity-check, cloud-reviewer, bug-hunt-loop, git-workflow, session-memo |
-| Review       | cloud-reviewer, session-memo |
+| Code         | code-preflight, code-sanity-check, bug-hunt-loop, git-workflow, session-memo |
+| Review       | session-memo only |
 | Debug        | deep-bug-analysis, bug-hunt-loop, session-memo |
 
 Never run code-preflight outside a Code session.
@@ -100,25 +100,35 @@ except for trivial one-liner errors (syntax, typo, missing import).
 
 ### Subagent Permissions by Session Type
 
-| Session Type | Permitted Subagents |
-|--------------|---------------------|
-| Plan         | `@plan-reviewer` — after preflight shows plan, before OK |
-| Code         | `@local-reviewer` — after edit, before git-workflow |
-| Code         | `@cloud-reviewer` — after edit, for deep function review |
-| Debug        | `@deep-bug-hunter` — invoked by deep-bug-analysis skill only |
-| All others   | None |
+| Session Type | When | Subagent |
+|--------------|------|----------|
+| Plan | After agent proposes plan, BEFORE user says OK | `@plan-reviewer` |
+| Code | After edits are complete, BEFORE git-workflow | `@local-reviewer` |
+| Debug | Invoked by deep-bug-analysis skill only | `@deep-bug-hunter` |
 
-`@local-reviewer` — read-only, runs on yubaba (Qwen3).
-Invoke manually only — never trigger automatically.
+---
 
-`@plan-reviewer` — read-only, reviews proposed plans before OK is given.
-Invoke manually only — never trigger automatically.
+## Subagent Rules — READ CAREFULLY
 
-`@cloud-reviewer` — read-only, deep function review after an edit. Runs via openrouter/qwen/qwen3-coder:free.
-Invoke manually only — never trigger automatically.
+**`@plan-reviewer`**
+- PURPOSE: Reviews a proposed PLAN before any code is written
+- TIMING: BEFORE the user says OK — never after edits
+- MODEL: openrouter-custom/Qwen3-coder-free (cloud, slow — acceptable for pre-edit review)
+- INVOCATION: Via Task tool only, never as a skill
+- Invoke manually only — never trigger automatically
 
-`@deep-bug-hunter` — read-only, runs on yubaba (Qwen3.6-35B).
-Invoked by deep-bug-analysis skill only — never invoke directly.
+**`@local-reviewer`**
+- PURPOSE: Reviews WRITTEN CODE after edits are complete
+- TIMING: AFTER edits are done — never before
+- MODEL: local-llama/Qwen3 on yubaba (fast, local)
+- INVOCATION: Via Task tool only, never as a skill
+- When user says "@local-reviewer", invoke THIS agent via Task tool immediately
+- Invoke manually only — never trigger automatically
+
+**`@deep-bug-hunter`**
+- PURPOSE: Deep bug analysis — invoked by deep-bug-analysis skill only
+- MODEL: local-llama/Qwen3.6-35b on yubaba
+- Never invoke directly
 
 ---
 
