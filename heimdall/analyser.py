@@ -11,6 +11,84 @@ from openai import OpenAI
 from openai import APIConnectionError, APIStatusError
 from tqdm import tqdm
 
+
+def _load_asd_data(asd_path: str) -> dict:
+    """Load ASD framework data from local JSON file.
+
+    Args:
+        asd_path: Path to data/asd_framework.json
+
+    Returns:
+        Parsed ASD data dict, or empty dict if file absent or unreadable.
+    """
+    try:
+        with Path(asd_path).open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        logger.warning(f"ASD framework file not found: {asd_path}")
+        return {}
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse ASD framework file {asd_path}: {e}")
+        return {}
+
+
+def _build_asd_context(asd_data: dict) -> str:
+    """Build a compact ASD control reference string for LLM prompt injection.
+
+    Args:
+        asd_data: Parsed ASD framework data from _load_asd_data().
+
+    Returns:
+        Formatted string for prompt injection, or empty string if no data.
+    """
+    if not asd_data:
+        return ""
+
+    lines = []
+
+    # Section 1 — Essential Eight summary (one line per strategy showing ML range)
+    essential_eight = asd_data.get("essential_eight", [])
+    strategies: dict[str, list[int]] = {}
+    for entry in essential_eight:
+        strategy = entry.get("strategy", "")
+        ml = entry.get("maturity_level", 0)
+        if strategy not in strategies:
+            strategies[strategy] = []
+        strategies[strategy].append(ml)
+
+    lines.append("Essential Eight Strategies:")
+    for strategy, mls in strategies.items():
+        min_ml = min(mls)
+        max_ml = max(mls)
+        ml_range = f"ML{min_ml}-ML{max_ml}" if min_ml < max_ml else f"ML{min_ml}"
+        lines.append(f"- {strategy} ({ml_range})")
+
+    # Section 2 — ISM controls grouped by category (compact format)
+    ism_controls = asd_data.get("ism", [])
+    if ism_controls:
+        lines.append("")
+        lines.append("Relevant ISM Controls:")
+
+        # Group by category
+        by_category: dict[str, list[dict]] = {}
+        for control in ism_controls:
+            cat = control.get("category", "Uncategorized")
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(control)
+
+        for category, controls in by_category.items():
+            lines.append(f"{category}:")
+            for control in controls:
+                desc = control.get("description", "")
+                # Truncate to 120 characters
+                truncated = desc[:120] if len(desc) > 120 else desc
+                # Remove newlines for compact format and strip trailing whitespace
+                truncated = " ".join(truncated.split())
+                lines.append(f"  {control.get('id', 'Unknown')}: {truncated}")
+
+    return "\n".join(lines)
+
 logger = logging.getLogger(__name__)
 
 
@@ -136,6 +214,7 @@ def analyse(
     embedder=None,
     mitre_path: str | None = None,
     platform_hints_path: str | None = None,
+    asd_path: str | None = None,
     show_progress: bool = False,
 ) -> dict[str, Any]:
     """
@@ -146,9 +225,10 @@ def analyse(
         baseline: Previous baseline data from baseline.Manager.load()
         llm_config: LLM config section with base_url, api_key, model, etc.
         embedder: Optional Embedder instance for retrieving similar incidents
-        mitre_path: Optional path to MITRE tactics JSON file
+       mitre_path: Optional path to MITRE tactics JSON file
         platform_hints_path: Optional path to platform false positive hints JSON file;
             defaults to "data/platform_hints.json" if not supplied
+        asd_path: Optional path to ASD framework JSON file
 
     Returns:
         Analysis dict with summary, findings, and recommendations.
@@ -189,12 +269,16 @@ def analyse(
     if platform_context:
         logger.debug("Platform context injected into prompt")
 
+    asd_data = _load_asd_data(asd_path) if asd_path else {}
+    asd_context = _build_asd_context(asd_data)
+
     prompt = _build_prompt(
         alerts,
         baseline,
         similar_incidents=similar_incidents,
         tactics=tactics,
         platform_context=platform_context,
+        asd_context=asd_context,
     )
 
     try:
@@ -244,6 +328,7 @@ def _build_prompt(
     similar_incidents: str = "",
     tactics: list = [],
     platform_context: str = "",
+    asd_context: str = "",
 ) -> str:
     """Build prompt with alert summary, baseline context, and similar incidents."""
     alert_summary = _summarise_alerts(alerts)
@@ -258,6 +343,8 @@ def _build_prompt(
 
     platform_block = f"\n{platform_context}\n" if platform_context else ""
 
+    asd_block = f"\nASD Framework Context:\n{asd_context}" if asd_context else ""
+
     return f"""You are a security analyst. Analyse these Wazuh alerts and provide findings.
 {platform_block}
 Recent alerts:
@@ -267,6 +354,7 @@ Recent alerts:
 
 {similar_incidents}
 {mitre_reference}
+{asd_block}
 
 Tag each finding with the most relevant MITRE ATT&CK tactic using exact tactic names from the reference above:
 <mitre_tags>
