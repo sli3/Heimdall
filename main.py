@@ -79,7 +79,7 @@ def main() -> None:
 
     mitre_path = config.get("mitre", {}).get("path") if "mitre" in config else None
     platform_hints_path = config.get("platform", {}).get("hints_path") if "platform" in config else None
-    analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"], embedder=embedder, mitre_path=mitre_path, platform_hints_path=platform_hints_path)
+    analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"], embedder=embedder, mitre_path=mitre_path, platform_hints_path=platform_hints_path, show_progress=show_progress)
     baseline_mgr.update(analysis, rule_counts=analyser.extract_rule_counts(alerts))
 
     trends_output = None

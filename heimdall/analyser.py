@@ -9,6 +9,7 @@ from typing import Any
 
 from openai import OpenAI
 from openai import APIConnectionError, APIStatusError
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,7 @@ def analyse(
     embedder=None,
     mitre_path: str | None = None,
     platform_hints_path: str | None = None,
+    show_progress: bool = False,
 ) -> dict[str, Any]:
     """
     Analyse security alerts using a remote LLM server.
@@ -196,14 +198,27 @@ def analyse(
     )
 
     try:
-        response = client.chat.completions.create(
+        full_text = ""
+        stream = client.chat.completions.create(
             model=llm_config["model"],
             messages=[{"role": "user", "content": prompt}],
             temperature=llm_config.get("temperature", 0.3),
             max_tokens=llm_config.get("max_tokens", 8192),
             presence_penalty=0.0,
             frequency_penalty=0.0,
+            stream=True,
         )
+        with tqdm(
+            total=None,
+            desc="Analysing",
+            unit=" tok",
+            disable=not show_progress,
+        ) as bar:
+            for chunk in stream:
+                content = chunk.choices[0].delta.content or ""
+                full_text += content
+                if content:
+                    bar.update(1)
     except APIConnectionError as e:
         logger.error(f"Failed to connect to LLM server: {e}")
         raise
@@ -211,9 +226,9 @@ def analyse(
         logger.error(f"LLM server returned error status: {e}")
         raise
 
-    analysis_text = response.choices[0].message.content.strip()
+    analysis_text = full_text.strip()
     ## For debugging DO NOT REMOVE ##
-    logger.debug(f"Raw API response: {response.choices[0].message.content!r}")
+    logger.debug(f"Raw API response: {full_text!r}")
     logger.debug(f"Raw LLM response: {analysis_text[:1000]}")
     ##################################
 
