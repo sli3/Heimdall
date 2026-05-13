@@ -26,7 +26,10 @@ The base project is complete. All modules are working end-to-end:
 | Historical Trending | ✅ Complete | `trending.py` wired into main pipeline |
 | MITRE ATT&CK Tagging | ✅ Complete | Tactic reference injected into LLM prompt, tags in report |
 | Multi-Model Routing | ~~Superseded~~ | See note below |
-| Embedding Model | 🔄 Validation | All 5 sessions complete — awaiting run 2 to confirm retrieval |
+| Embedding Model | ✅ Complete | 89 vectors stored, retrieval confirmed working |
+| Platform-Aware Alert Context | 🔲 Queued | Platform/rule hint table injected into prompt; addresses FreeBSD false positives |
+| Progress Bar + LLM Streaming | 🔲 Planned | tqdm bars + stream=True token counter in analyser |
+| ASD Framework Mapping | 🔲 Planned | Essential Eight + ISM curated subset; same pattern as MITRE tagging |
 
 ---
 
@@ -152,11 +155,12 @@ entirely. Semantic search solves both problems.
 
 ---
 
-**Validation Status:**
+**Validation Status:** ✅ Complete
 
-- Run 1 completed — alerts embedded into ChromaDB, no retrieval output yet (empty vector store on first run, expected)
-- Run 2 required to confirm "Similar past incidents" context appears in LLM prompt and report
-- If retrieval output is absent after run 2, check logs for `embed`, `chroma`, `similar`, `retriev` keywords
+- Run 1 completed — alerts embedded into ChromaDB, no retrieval output (expected — empty store on first run)
+- Run 2 confirmed — 89 vectors stored in `alerts` collection, embedding server
+  receiving requests (HTTP 200 on port 8081), ChromaDB sqlite file growing
+- Pipeline confirmed end-to-end: Wazuh alerts → Qwen3-Embedding-0.6B → ChromaDB
 
 **Operational Notes:**
 
@@ -178,12 +182,404 @@ entirely. Semantic search solves both problems.
 
 ---
 
+### 5. Platform-Aware Alert Context
+
+**What it does:**
+Injects platform metadata into the LLM prompt before analysis so that findings
+are interpreted relative to the OS and filesystem the agent is running on.
+Prevents the LLM from escalating structural false positives that are a direct
+consequence of platform behaviour rather than a security event.
+
+**Background:**
+Rootcheck rule 510 on a FreeBSD/OPNsense agent produces level 7 alerts for
+`/boot/efi` link count mismatches. This is a structural false positive: FAT32
+does not implement Unix hard link counts, so the mismatch is architectural
+rather than suspicious. Without platform context, the LLM escalated this to a
+"confirmed rootkit — rebuild immediately" recommendation. The fix is context,
+not suppression — the LLM still makes the final call, but with accurate
+information about what the platform does normally.
+
+**How it works:**
+- `data/platform_hints.json` holds a lookup table keyed by OS platform
+  (e.g. `freebsd`, `linux`, `windows`); each entry lists known rule/path
+  combinations that are structural false positives on that platform, with a
+  plain-English hint explaining why
+- `analyser.py` extracts `agent.os.platform` from the alert batch, looks up
+  any matching hints for the rule IDs present, and prepends a Platform Context
+  block to the prompt before the alert summary
+- `wazuh_client.py` already returns `agent.os` fields as part of the full
+  `_source` payload — no query changes required; verified at session start
+
+**Platform hints JSON structure:**
+
+```json
+{
+  "freebsd": {
+    "description": "FreeBSD and derivatives (OPNsense, pfSense)",
+    "filesystem_notes": "FAT32 (EFI partition) does not implement Unix hard link counts.",
+    "rules": {
+      "510": {
+        "paths": ["/boot/efi"],
+        "hint": "Link count mismatches on /boot/efi are a structural FAT32 artefact on FreeBSD/OPNsense — not an indicator of rootkit activity. Do not escalate."
+      }
+    }
+  }
+}
+```
+
+**Prompt injection format:**
+
+```
+Platform context:
+- Agent: firewall-01 (freebsd — FreeBSD and derivatives)
+- Filesystem notes: FAT32 (EFI partition) does not implement Unix hard link counts.
+- Known false positives for this platform:
+  - Rule 510 on /boot/efi: Link count mismatches are a structural FAT32 artefact — not a rootkit indicator. Do not escalate.
+```
+
+**Key design decisions:**
+- Hints are injected as context, not hard suppression rules — the LLM retains
+  full authority over the final finding; the hint is advisory
+- `platform_hints.json` is editable without code changes — new false positives
+  are added to the JSON file as they are discovered; no code session required
+- Graceful skip if `platform_hints.json` is absent or a platform has no entry —
+  analysis continues without the platform block; run is never blocked
+- If multiple agents with different OS platforms are present in the same batch,
+  all relevant platform blocks are injected (one per distinct platform found)
+- No new Python dependencies required
+
+**New files/changes:**
+- `data/platform_hints.json` — platform/rule false positive hint table
+  (gitignored alongside MITRE and ASD data; regenerate from source or maintain
+  manually; starts with the FreeBSD/rule 510 entry)
+- `heimdall/analyser.py` — add `_load_platform_hints()` and
+  `_build_platform_context()` helpers; update `_build_prompt()` to call them
+  and prepend the platform block when hints are present
+- `config.example.toml` — add `[platform]` section with `hints_path` key
+- `wazuh_client.py` — read-only verification at session start; no code change
+  expected
+
+---
+
+**Implementation Sessions:**
+
+- **Session 1 — data/platform_hints.json**
+  - Read `wazuh_client.py` to confirm `agent.os.platform` and `agent.os.name`
+    are returned in the existing `_source` payload; confirm field paths; document
+    any discrepancy — no code change to `wazuh_client.py` expected
+  - Create `data/platform_hints.json` with the initial FreeBSD entry (rule 510,
+    path `/boot/efi`, hint text as above) and the top-level JSON schema
+    (`platform key → description, filesystem_notes, rules → rule_id → paths, hint`)
+  - Add `data/platform_hints.json` to `.gitignore` alongside `data/mitre_attack.json`
+    and `data/asd_framework.json`
+  - Out of scope: `analyser.py`, `config.example.toml`, any logic changes
+
+- **Session 2 — heimdall/analyser.py + config.example.toml**
+  - Read `analyser.py` in full before touching anything; identify the exact
+    insertion point in `_build_prompt()`
+  - Add `_load_platform_hints(hints_path: str) -> dict` — reads
+    `data/platform_hints.json`; returns empty dict on file-not-found with a
+    `logger.warning`; called once per `analyse()` invocation
+  - Add `_build_platform_context(alerts: list[dict], hints: dict) -> str` —
+    extracts distinct `agent.os.platform` values from alert `_source` fields;
+    looks up each platform in `hints`; for each platform found, checks rule IDs
+    present in the alert batch against `hints[platform]["rules"]`; builds and
+    returns the formatted platform block string (empty string if no matches)
+  - Update `_build_prompt()`: accept `platform_context: str` parameter; if
+    non-empty, prepend it before the alert summary block
+  - Update `analyse()`: call `_load_platform_hints()` with path from `llm_config`
+    (or a hardcoded default `"data/platform_hints.json"` if config key absent);
+    call `_build_platform_context()`; pass result to `_build_prompt()`
+  - `config.example.toml`: add `[platform]` section with
+    `hints_path = "data/platform_hints.json"`
+  - Out of scope: `_parse_analysis()`, `wazuh_client.py`, `reporter.py`,
+    `baseline.py`, streaming logic
+
+---
+
+**Operational Notes:**
+
+- Add new false positives directly to `data/platform_hints.json` — no code
+  session required; format follows the existing FreeBSD entry
+- Rule IDs in the JSON must match the Wazuh rule ID as a string (e.g. `"510"`,
+  not `510`) — check `rule.id` field in a raw alert to confirm
+- If `agent.os.platform` is absent in an alert (can happen with agentless
+  sources), `_build_platform_context()` skips that alert silently
+- Run smoke test after Session 2:
+  `python -c "from heimdall import analyser; print('imports OK')"`
+
+---
+
+### 6. Progress Bar + LLM Streaming
+
+**What it does:**
+Two complementary improvements to terminal feedback during a Heimdall run.
+Part A adds tqdm progress bars to phases with known counts — alert fetch,
+baseline migration, and embedding calls. Part B replaces the blocking
+`chat.completions.create()` call with a streaming response that displays a
+live token counter and generation speed as the model writes, giving real proof
+of liveness rather than a spinner over a silent connection.
+
+**The problem it solves:**
+All three phases block for seconds to minutes with no output. The embedding
+migration loop and the LLM call are the main pain points. A determinate bar
+over the migration loop shows actual progress; the streaming token counter
+shows the model is generating rather than hanging, and surfaces generation
+speed (tokens/s) as a useful operational signal when tuning the inference
+server.
+
+**Part A — tqdm progress bars (known counts):**
+- `wazuh_client.py` — spinner during the OpenSearch HTTP request (single call,
+  total unknown during flight); closes and reports fetched count via
+  `tqdm.write()` on return
+- `embedder.py` — determinate bar over the baseline migration loop
+  (`tqdm(items, desc="Embedding migration", unit=" entry")`; total = number of
+  entries, known upfront); separate spinner over `query_similar()` call
+- `main.py` — `--no-progress` flag; `show_progress` bool derived once
+  (`not args.no_progress and sys.stdout.isatty()`) and threaded into
+  `Client`, `Embedder`, and `analyse()`; step labels via `tqdm.write()` to
+  avoid interleaving with active bars
+
+**Part B — LLM streaming token counter:**
+- `analyser.py` — `client.chat.completions.create(stream=True)` replaces the
+  blocking call; response is consumed chunk by chunk; each chunk's
+  `delta.content` is accumulated into `full_text` and counted as one token;
+  a `tqdm(total=None, unit=" tok", desc="Analysing")` bar is updated on
+  each non-empty chunk — tqdm's built-in rate calculation yields tokens/s
+  automatically; the bar closes when the stream ends; `full_text` is passed
+  to `_parse_analysis()` unchanged — no downstream changes required
+- When `show_progress` is False, streaming still runs (it is strictly better
+  than a blocking call for liveness) but the tqdm bar is disabled; chunk
+  accumulation is unchanged
+
+**Library choice — tqdm:**
+- Pure Python, zero native dependencies, minimal overhead
+- Works correctly in standard terminals and over SSH — no curses requirement
+- `tqdm(total=None)` for indeterminate phases; determinate for known counts
+- Rate display (`tok/s`) emerges from tqdm's own elapsed time tracking —
+  no manual rate calculation needed
+
+**Key design decisions:**
+- Streaming is unconditional — `stream=True` regardless of `--no-progress`;
+  only the tqdm bar display is gated on `show_progress`; this keeps Part B
+  permanently beneficial (avoids a long blocking HTTP hold on the connection)
+- `show_progress` is derived once in `main.py` and passed down — no module
+  reads `sys.stdout.isatty()` directly; single point of control
+- Bars are automatically suppressed when stdout is not a TTY (cron, pipes,
+  log redirection) via the `disable` parameter — no special cron config needed
+- Part B is the higher-priority change; if session scope must be trimmed,
+  Part A (wazuh_client.py spinner, embedder.py bar) is deferred before
+  Part B (analyser.py streaming) is touched
+
+**New files/changes:**
+- `requirements.txt` — add `tqdm>=4.66`
+- `main.py` — `--no-progress` flag; `show_progress` bool; pass to sub-modules;
+  step labels via `tqdm.write()`
+- `heimdall/wazuh_client.py` — spinner + count display in `fetch_alerts()`
+- `heimdall/embedder.py` — determinate bar over migration loop; spinner over
+  `query_similar()`
+- `heimdall/analyser.py` — `stream=True`; chunk accumulation loop; tqdm token
+  counter; `full_text` passed to `_parse_analysis()` unchanged
+
+---
+
+**Implementation Sessions:**
+
+- **Session 1 — Part A: tqdm bars (wazuh_client.py, embedder.py, main.py)**
+  - Add `tqdm>=4.66` to `requirements.txt`
+  - `main.py`: add `--no-progress` CLI flag; derive
+    `show_progress = not args.no_progress and sys.stdout.isatty()`; pass
+    `show_progress` to `wazuh_client.Client.__init__()` and
+    `embedder.Embedder.__init__()`; use `tqdm.write()` for step labels
+  - `heimdall/wazuh_client.py`: add `show_progress: bool = False` to
+    `__init__()`; in `fetch_alerts()`, wrap the `requests.post()` call with
+    `tqdm(total=None, desc="Fetching alerts", disable=not self.show_progress)`
+    as a context manager; on return, call
+    `tqdm.write(f"Fetched {len(alerts)} alerts")` to report the count
+  - `heimdall/embedder.py`: add `show_progress: bool = False` to
+    `__init__()`; wrap the baseline migration loop with
+    `tqdm(items, desc="Embedding migration", unit=" entry", disable=not self.show_progress)`;
+    wrap the `query_similar()` HTTP call with a `tqdm(total=None)` spinner
+  - Out of scope: `analyser.py`, `reporter.py`, `baseline.py`, `trending.py`,
+    `embedder.py` ChromaDB and vector logic, any analysis logic
+
+- **Session 2 — Part B: LLM streaming (analyser.py only)**
+  - `heimdall/analyser.py`: add `show_progress: bool = False` parameter to
+    `analyse()`; replace `client.chat.completions.create(...)` with
+    `client.chat.completions.create(..., stream=True)`; consume the stream
+    in a loop: `for chunk in stream: content = chunk.choices[0].delta.content or ""; full_text += content; if content: bar.update(1)`;
+    wrap loop with `tqdm(total=None, desc="Analysing", unit=" tok", disable=not show_progress)`;
+    after loop, pass `full_text` to `_parse_analysis()` unchanged
+  - `main.py`: pass `show_progress` to `analyser.analyse()` (one-line change
+    to the existing call site added in Session 1)
+  - Out of scope: `_parse_analysis()` logic, `_build_prompt()`, `wazuh_client.py`,
+    `embedder.py`, `reporter.py`, `baseline.py`
+
+---
+
+**Operational Notes:**
+
+- Streaming (`stream=True`) is always active regardless of `--no-progress` —
+  only the tqdm display is gated; the streaming loop runs in both modes
+- Progress bars are automatically suppressed when stdout is not a TTY
+- `tqdm.write()` is used for all step labels while bars are active to prevent
+  line-clobber artefacts; existing `logging` calls are unaffected if the log
+  handler writes to stderr (default `logging.basicConfig` behaviour)
+- Expected streaming display: `Analysing... 1247 tok [00:29<?, 43.0 tok/s]`
+- Run smoke test after each session:
+  `python -c "from heimdall import wazuh_client, embedder, analyser; print('imports OK')"`
+
+---
+
+### 7. ASD Framework Mapping
+
+**What it does:**
+Maps alert findings and recommendations to Australian cyber security controls —
+the Essential Eight (ASD) and a curated subset of the ISM (Australian Government
+Information Security Manual) — so that recommendations in Heimdall reports align
+with Australian regulatory language. Example output: "Isolate affected host —
+Essential Eight: Restrict Administrative Privileges (ML2), ISM-1175."
+
+**The problem it solves:**
+MITRE ATT&CK tagging names the threat tactic; ASD mapping closes the loop by
+naming the defensive control. For Australian operators (government, critical
+infrastructure, regulated entities), ISM and Essential Eight are the reference
+frameworks. Aligning recommendations to these controls makes reports actionable
+within Australian compliance contexts without manual cross-referencing.
+
+**How it works:**
+- `scripts/asd_sync.py` builds a local `data/asd_framework.json` lookup file
+  combining Essential Eight strategies and a curated ISM control subset
+- Essential Eight data is maintained as a structured static dataset in the sync
+  script (8 strategies × 4 maturity levels = 32 control entries); the ASD does
+  not publish a machine-readable version, and the framework is stable enough
+  that manual updates on major revision are acceptable
+- ISM data is fetched from the ACSC-published ISM Excel workbook
+  (cyber.gov.au/resources-business-and-government/essential-cyber-security/ism)
+  and filtered to controls relevant to the alert types Heimdall handles:
+  access control, system monitoring, patch management, incident response,
+  network security (approximately 80–120 controls from ~750 total)
+- At analysis time, `analyser.py` reads the local file and injects a compact
+  ASD control reference into the LLM prompt alongside the MITRE tactic reference
+- The LLM maps findings and recommendations to Essential Eight strategies
+  (with maturity level) and ISM control IDs
+- `reporter.py` outputs an ASD Framework Alignment table in the report
+
+**Key design decisions:**
+- No live fetching during report runs — always reads from local JSON file, same
+  pattern as MITRE ATT&CK tagging
+- `asd_sync.py` run manually or on ISM update cadence (quarterly) — not
+  triggered automatically by Heimdall
+- Essential Eight is hardcoded in the sync script, not fetched — avoids HTML
+  scraping fragility; the ASD publishes no machine-readable Essential Eight
+  source; the framework is revised infrequently (major revisions announced publicly)
+- ISM fetch parses the official ACSC Excel workbook; the sync script filters
+  by control category rather than manual curation so the filter logic can be
+  adjusted without editing the dataset itself
+- Curated ISM subset rather than full 750-control set — injecting all controls
+  would exceed useful prompt context; relevance filtering keeps the injected
+  reference compact (same approach as MITRE tactic-only injection)
+- ASD mapping and MITRE mapping are independent — both can appear in the same
+  report section; reporter handles each as a separate table
+
+**New files/changes:**
+- `scripts/asd_sync.py` — new standalone sync script; builds Essential Eight
+  static dataset + fetches and filters ISM Excel workbook; writes
+  `data/asd_framework.json`
+- `data/asd_framework.json` — local ASD lookup file (gitignored if large)
+- `heimdall/analyser.py` — update `_build_prompt()` to load and inject compact
+  ASD control reference alongside existing MITRE context
+- `heimdall/reporter.py` — add ASD Framework Alignment table to report output,
+  parallel to existing MITRE ATT&CK Tags table
+- `config.example.toml` — add `[asd]` section with local data path, ISM source
+  URL, and ISM category filter list
+
+---
+
+**Implementation Sessions:**
+
+- **Session 1 — scripts/asd_sync.py + data/asd_framework.json**
+  - New script `scripts/asd_sync.py`:
+    - Essential Eight static dataset: 8 strategies, each with 4 maturity level
+      entries (ML1–ML4), including strategy name, maturity level, and a one-line
+      description of the control requirement at that level
+    - ISM fetch: download the ACSC ISM Excel workbook from the configured source
+      URL; parse with `openpyxl`; filter rows where the Control Category column
+      matches the configured category list (e.g. `["Access Control", "System
+      Monitoring", "Patch Management", "Incident Response", "Network Management"]`)
+    - Write combined output to `data/asd_framework.json` with two top-level keys:
+      `essential_eight` (list of 32 entries) and `ism` (list of filtered controls,
+      each with `id`, `category`, `description`)
+    - Add `openpyxl` to `requirements.txt`
+  - Out of scope: `analyser.py`, `reporter.py`, `config.example.toml`, all
+    `heimdall/` modules
+
+- **Session 2 — heimdall/analyser.py**
+  - Update `_build_prompt()` to accept `asd_context: str` parameter (compact
+    formatted string, built from `data/asd_framework.json` before the call)
+  - Add `_build_asd_context()` helper function: reads `data/asd_framework.json`,
+    formats Essential Eight strategies as a compact reference block (strategy name
+    + ML range), appends ISM control IDs and one-line descriptions grouped by
+    category; returns a string short enough to fit within prompt budget
+  - Update `analyse()` to call `_build_asd_context()` when the ASD data file
+    exists (graceful skip with a warning log if file is absent — run is not
+    blocked by missing ASD data)
+  - Out of scope: `reporter.py`, `main.py`, `config.example.toml`, MITRE prompt
+    logic (read only for reference)
+
+- **Session 3 — heimdall/reporter.py**
+  - Add `_build_asd_table()` helper: formats the ASD mappings returned in the
+    analysis dict as a markdown table with columns: Finding, Essential Eight
+    Strategy, Maturity Level, ISM Controls
+  - Update `_build_report()` to call `_build_asd_table()` and insert the table
+    after the existing MITRE ATT&CK Tags section; skip gracefully if no ASD
+    mappings are present in the analysis dict
+  - Out of scope: `analyser.py`, `main.py`, `config.example.toml`, MITRE
+    reporter logic (read only for reference)
+
+- **Session 4 — config.example.toml + README.md**
+  - Add `[asd]` section to `config.example.toml`:
+    ```toml
+    [asd]
+    data_path = "data/asd_framework.json"
+    ism_source_url = "https://www.cyber.gov.au/resources-business-and-government/essential-cyber-security/ism"
+    ism_categories = ["Access Control", "System Monitoring", "Patch Management", "Incident Response", "Network Management"]
+    ```
+  - Update `README.md`: add `asd_sync.py` to scripts table; add `[asd]` config
+    keys to config reference section; add note that `asd_sync.py` must be run
+    before first use and re-run after ISM quarterly update
+  - ⚠️ **Manual step required:** `[asd]` section must be manually copied from
+    `config.example.toml` into live `config.toml`. Agent never touches `config.toml`.
+  - Out of scope: any logic changes to `analyser.py`, `reporter.py`, or
+    `asd_sync.py`
+
+---
+
+**Operational Notes:**
+
+- Run `python scripts/asd_sync.py` before first Heimdall run with ASD mapping enabled
+- Re-run `asd_sync.py` after each ISM quarterly update (ACSC typically publishes
+  in January, April, July, October)
+- Essential Eight does not require re-sync unless ASD publishes a major revision —
+  check cyber.gov.au/essential-eight when revisions are announced
+- If `data/asd_framework.json` is absent, Heimdall logs a warning and continues
+  without ASD mapping — the run is not blocked
+- `openpyxl` is added to `requirements.txt` as a new dependency (ISM Excel parse);
+  no other new dependencies introduced
+- Run smoke test after implementation: `python -c "from heimdall import analyser, reporter; print('imports OK')"`
+- ASD data file is gitignored alongside MITRE data — regenerate locally after clone
+
+---
+
 ## Suggested Build Order
 
 1. ~~Historical Trending~~ — Complete ✅
 2. ~~MITRE ATT&CK Tagging~~ — Complete ✅
 3. ~~Multi-Model Routing~~ — Superseded ✅
-4. **Embedding Model** — In Progress
+4. ~~Embedding Model~~ — Complete ✅
+5. **Platform-Aware Alert Context** — Queued (2 sessions; low risk; addresses known false positive before adding more features)
+6. **Progress Bar + LLM Streaming** — Planned (2 sessions; cosmetic layer; good to have before ASD adds more prompt complexity)
+7. **ASD Framework Mapping** — Planned (4 sessions; same pattern as MITRE tagging)
 
 ---
 
