@@ -7,6 +7,7 @@ import sys
 import tomllib
 from pathlib import Path
 
+from tqdm import tqdm
 from heimdall import wazuh_client, analyser, reporter, baseline, trending, embedder as embedder_module
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,14 @@ def main() -> None:
     parser.add_argument("--level", type=int, default=7, help="Minimum alert level")
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Logging level")
     parser.add_argument("--report-only", action="store_true", help="Generate report from existing baseline")
+    parser.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="Disable tqdm progress bars (e.g. for cron or log redirection)"
+    )
     args = parser.parse_args()
+
+    show_progress = not args.no_progress and sys.stdout.isatty()
 
     logging.basicConfig(
         level=getattr(logging, args.log_level),
@@ -40,7 +48,7 @@ def main() -> None:
 
     # NEW: Load embeddings config section (optional) and instantiate Embedder
     embedder_config = config.get("embeddings") if "embeddings" in config else None
-    embedder = embedder_module.Embedder(embedder_config) if embedder_config else None
+    embedder = embedder_module.Embedder(embedder_config, show_progress=show_progress) if embedder_config else None
 
     for section in ("wazuh", "llm", "reports", "baseline"):
         if section not in config:
@@ -49,7 +57,7 @@ def main() -> None:
 
     # Pass embedder to baseline.Manager constructor  
     baseline_mgr = baseline.Manager(config["baseline"], embedder=embedder)
-    wazuh = wazuh_client.Client(config["wazuh"])
+    wazuh = wazuh_client.Client(config["wazuh"], show_progress=show_progress)
 
     # NEW: Migrate baseline embeddings on first run (before any conditional branches)
     if embedder is not None:

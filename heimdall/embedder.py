@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from tqdm import tqdm
+
 import chromadb
 from openai import OpenAI, APIConnectionError, APITimeoutError
 
@@ -22,13 +24,14 @@ logger = logging.getLogger(__name__)
 class Embedder:
     """Manages embedding and vector retrieval for semantic memory."""
 
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any], show_progress: bool = False) -> None:
         """
         Initialise embedder client.
 
         Args:
             config: Embedding config with endpoint, model, chroma_db_path, top_k keys.
         """
+        self.show_progress = show_progress
         self._endpoint = config.get("endpoint", "http://localhost:8081/v1/embeddings")
         self._model = config.get("model", "Qwen3-Embedding-0.6B")
         self._chroma_path = Path(config.get("chroma_db_path", "data/chromadb"))
@@ -114,7 +117,9 @@ class Embedder:
         k = top_k if top_k is not None else self._top_k
 
         try:
-            query_embedding = self.encode(query_text)
+            with tqdm(total=None, desc="Retrieving similar", unit="", disable=not self.show_progress) as bar:
+                query_embedding = self.encode(query_text)
+                bar.update(1)
 
             # Convert numpy array to list if needed
             if isinstance(query_embedding, list):
@@ -165,7 +170,12 @@ class Embedder:
         count = 0
 
         # Migrate findings
-        for finding in baseline_data.get("findings", []):
+        for finding in tqdm(
+            baseline_data.get("findings", []),
+            desc="Embedding migration",
+            unit=" entry",
+            disable=not self.show_progress,
+        ):
             metadata = {
                 "timestamp": baseline_data.get("updated_at", ""),
                 "rule_group": "baseline_finding",

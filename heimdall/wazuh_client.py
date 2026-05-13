@@ -9,6 +9,7 @@ from typing import Any
 
 import requests
 from requests.auth import HTTPBasicAuth
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,9 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 class Client:
     """Wazuh REST API client for fetching security alerts."""
 
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any], show_progress: bool = False) -> None:
         """Initialise with wazuh config section."""
+        self.show_progress = show_progress
         # Manager API config
         self.host = config["host"]
         self.port = config.get("port", 55000)
@@ -86,14 +88,16 @@ class Client:
         auth = HTTPBasicAuth(self.indexer_user, self.indexer_password)
 
         try:
-            response = requests.post(
-                f"{self.indexer_url}/wazuh-alerts-4.x-*/_search",
-                json=query,
-                auth=auth,
-                verify=False,
-                timeout=30,
-            )
-            response.raise_for_status()
+            with tqdm(total=None, desc="Fetching alerts", unit="", disable=not self.show_progress) as bar:
+                response = requests.post(
+                    f"{self.indexer_url}/wazuh-alerts-4.x-*/_search",
+                    json=query,
+                    auth=auth,
+                    verify=False,
+                    timeout=30,
+                )
+                response.raise_for_status()
+                bar.update(1)
         except requests.exceptions.ConnectionError as e:
             logger.error(f"Failed to connect to Wazuh Indexer: {e}")
             raise
@@ -107,5 +111,6 @@ class Client:
         data = response.json()
         alerts = data["hits"]["hits"]
         logger.info(f"Fetched {len(alerts)} alerts from Wazuh Indexer")
+        tqdm.write(f"Fetched {len(alerts)} alerts")
 
         return alerts
