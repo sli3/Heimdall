@@ -1,6 +1,17 @@
-"""Essential Eight compliance scoring and ISM control matching module."""
+"""Essential Eight compliance scoring and ISM control matching module.
 
+Callers should pass overrides_path from config:
+overrides_path = config.get("e8", {}).get("overrides_path")
+"""
+
+import json
+import logging
 import re
+from pathlib import Path
+
+__all__ = ["score_findings", "match_ism_controls"]
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["score_findings", "match_ism_controls"]
 
@@ -19,6 +30,38 @@ MIN_KEYWORD_LENGTH = 4
 
 # Minimum match score for ISM control to be included in results
 MIN_ISM_MATCH_SCORE = 1
+
+
+def _load_overrides(overrides_path: str | None) -> dict[str, set[str]]:
+    """
+    Load per-strategy keyword blocklists from override file.
+
+    Args:
+        overrides_path: Path to e8_keyword_overrides.json, or None.
+
+    Returns:
+        Dict mapping strategy name to set of blocked keywords.
+        Returns empty dict if path is None or file is unreadable.
+    """
+    if overrides_path is None:
+        return {}
+
+    try:
+        path = Path(overrides_path)
+        if not path.is_file():
+            logger.warning("e8_keyword_overrides.json not found at %s", overrides_path)
+            return {}
+
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        blocklist = data.get("strategy_blocklist", {})
+        # Convert lists to sets for O(1) lookup
+        return {k: set(v) for k, v in blocklist.items()}
+
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning("Failed to load e8_keyword_overrides.json: %s", e)
+        return {}
 
 
 def _convert_findings(findings: list[dict | str]) -> list[dict]:
@@ -84,6 +127,7 @@ def _normalise_findings(findings: list[dict]) -> list[str]:
 def score_findings(
     findings: list[dict | str],
     asd_data: dict,
+    overrides_path: str | None = None,
 ) -> dict[str, dict[int, bool]]:
     """Score findings against Essential Eight strategies.
     
@@ -91,6 +135,7 @@ def score_findings(
         findings: List of finding dictionaries with description, rule_group, recommendation,
                  or strings that will be converted to dicts.
         asd_data: ASD framework data containing essential_eight entries.
+        overrides_path: Path to e8_keyword_overrides.json for per-strategy keyword blocking.
     
     Returns:
         Dictionary mapping strategy names to maturity level scores (1-4, True=passing).
@@ -117,14 +162,21 @@ def score_findings(
         for strategy in unique_strategies
     }
     
+    # Load keyword overrides
+    overrides = _load_overrides(overrides_path)
+
     # Process each E8 entry and mark failures
     for entry in asd_data["essential_eight"]:
         keywords = _extract_keywords(entry["strategy"] + " " + entry["description"])
-        
+
+        # Remove blocked keywords for this strategy
+        strategy = entry["strategy"]
+        blocked = overrides.get(strategy, set())
+        keywords -= blocked
+
         if keywords & all_keywords:  # Any overlap
-            strategy = entry["strategy"]
             ml_level = entry["maturity_level"]
-            
+
             # Mark this level and all higher levels as failing
             for level in range(ml_level, 5):
                 scores[strategy][level] = False
@@ -136,6 +188,7 @@ def match_ism_controls(
     findings: list[dict | str],
     asd_data: dict,
     max_controls: int = 15,
+    overrides_path: str | None = None,
 ) -> list[dict]:
     """Match ISM controls to relevant findings using keyword matching.
     
@@ -144,6 +197,7 @@ def match_ism_controls(
                  or strings that will be converted to dicts.
         asd_data: ASD framework data containing ism entries.
         max_controls: Maximum number of controls to return (default 15).
+        overrides_path: Path to e8_keyword_overrides.json for global keyword blocking.
     
     Returns:
         List of up to max_controls ISM control dictionaries sorted by match score descending.
@@ -155,11 +209,19 @@ def match_ism_controls(
     for text in normalised_text:
         all_keywords.update(_extract_keywords(text))
     
+    # Load keyword overrides for ISM matching
+    overrides = _load_overrides(overrides_path)
+    # Build global blocked set (union of all strategy blocklists)
+    global_blocked = set().union(*overrides.values()) if overrides else set()
+
     # Score each ISM control
     scored_controls = []
     for control in asd_data["ism"]:
         keywords = _extract_keywords(control["description"] + " " + control["category"])
-        match_score = len(keywords & all_keywords)
+        
+        # Remove globally blocked keywords from ISM matching
+        control_keywords = keywords - global_blocked
+        match_score = len(control_keywords & all_keywords)
         
         if match_score >= MIN_ISM_MATCH_SCORE:
             scored_controls.append((control, match_score))

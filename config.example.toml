@@ -44,6 +44,9 @@ top_k = 5
 [asd]
 path = "data/asd_framework.json"
 
+[e8]
+overrides_path = "data/e8_keyword_overrides.json"
+
 [platform]
 # Path to platform false positive hint table
 # Edit this file directly to add new hints — no code change required

@@ -89,8 +89,9 @@ def main() -> None:
         trends_output = trend_mgr.generate(baseline_mgr.load())
 
     asd_data = analyser._load_asd_data(asd_path) if asd_path else {}
-    e8_scores = e8_scorer.score_findings(analysis.get("findings", []), asd_data) if asd_data else {}
-    matched_controls = e8_scorer.match_ism_controls(analysis.get("findings", []), asd_data) if asd_data else []
+    overrides_path = config.get("e8", {}).get("overrides_path") if "e8" in config else None
+    e8_scores = e8_scorer.score_findings(analysis.get("findings", []), asd_data, overrides_path=overrides_path) if asd_data else {}
+    matched_controls = e8_scorer.match_ism_controls(analysis.get("findings", []), asd_data, overrides_path=overrides_path) if asd_data else []
     rep = reporter.Reporter(config["reports"])
     rep.generate(analysis, trends=trends_output, asd_data=asd_data, e8_scores=e8_scores, matched_controls=matched_controls)
 
