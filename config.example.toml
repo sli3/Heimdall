@@ -40,3 +40,8 @@ endpoint = "http://localhost:8081/v1"
 model = "Qwen3-Embedding-0.6B"
 chroma_db_path = "~/.heimdall/chromadb"
 top_k = 5
+
+[platform]
+# Path to platform false positive hint table
+# Edit this file directly to add new hints — no code change required
+hints_path = "data/platform_hints.json"

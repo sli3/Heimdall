@@ -1,0 +1,12 @@
+{
+  "freebsd": {
+    "description": "FreeBSD and derivatives (OPNsense, pfSense)",
+    "filesystem_notes": "FAT32 (EFI partition) does not implement Unix hard link counts.",
+    "rules": {
+      "510": {
+        "paths": ["/boot/efi"],
+        "hint": "Link count mismatches on /boot/efi are a structural FAT32 artefact on FreeBSD/OPNsense — not an indicator of rootkit activity. Do not escalate."
+      }
+    }
+  }
+}

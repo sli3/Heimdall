@@ -37,7 +37,105 @@ def _build_mitre_reference(tactics: list[dict[str, Any]]) -> str:
     return ", ".join(parts)
 
 
-def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: dict[str, Any], embedder=None, mitre_path: str | None = None) -> dict[str, Any]:
+def _load_platform_hints(hints_path: str) -> dict:
+    """Load platform false positive hints from local JSON file.
+
+    Returns empty dict if the file is absent or malformed — run is never blocked.
+    """
+    try:
+        with Path(hints_path).open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        logger.warning(f"Platform hints file not found: {hints_path}")
+        return {}
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse platform hints file {hints_path}: {e}")
+        return {}
+
+
+def _build_platform_context(alerts: list[dict[str, Any]], hints: dict) -> str:
+    """Build platform context block for prompt injection.
+
+    Extracts distinct agent.os.platform values from the alert batch, looks up
+    matching hints for the rule IDs present, and returns a formatted context block.
+    Returns an empty string if no platform matches are found — caller skips silently.
+    """
+    if not hints:
+        return ""
+
+    # Collect distinct platforms and representative agent info
+    seen_platforms: dict[str, dict[str, Any]] = {}
+    for alert in alerts:
+        source = alert.get("_source", {})
+        agent = source.get("agent", {})
+        os_info = agent.get("os", {})
+        platform = os_info.get("platform", "").lower()
+        if not platform:
+            continue
+        if platform not in seen_platforms:
+            seen_platforms[platform] = {
+                "agent_name": agent.get("name", "unknown"),
+                "os_name": os_info.get("name", platform),
+            }
+
+    if not seen_platforms:
+        return ""
+
+    # Collect all rule IDs present in this alert batch
+    batch_rule_ids: set[str] = set()
+    for alert in alerts:
+        source = alert.get("_source", {})
+        rule_id = str(source.get("rule", {}).get("id", ""))
+        if rule_id:
+            batch_rule_ids.add(rule_id)
+
+    blocks: list[str] = []
+    for platform, info in seen_platforms.items():
+        platform_hints = hints.get(platform)
+        if not platform_hints:
+            continue
+
+        description = platform_hints.get("description", platform)
+        filesystem_notes = platform_hints.get("filesystem_notes", "")
+        rules = platform_hints.get("rules", {})
+
+        # Only inject rule hints whose rule IDs appear in this batch
+        matching_hints: list[str] = []
+        for rule_id, rule_info in rules.items():
+            if rule_id in batch_rule_ids:
+                paths = rule_info.get("paths", [])
+                hint = rule_info.get("hint", "")
+                if hint:
+                    paths_str = ", ".join(paths) if paths else "any path"
+                    matching_hints.append(f"  - Rule {rule_id} on {paths_str}: {hint}")
+
+        # Skip this platform block entirely if there's nothing useful to inject
+        if not matching_hints and not filesystem_notes:
+            continue
+
+        lines = [f"- Agent: {info['agent_name']} ({platform} — {description})"]
+        if filesystem_notes:
+            lines.append(f"- Filesystem notes: {filesystem_notes}")
+        if matching_hints:
+            lines.append("- Known false positives for this platform:")
+            lines.extend(matching_hints)
+
+        blocks.append("\n".join(lines))
+
+    if not blocks:
+        return ""
+
+    return "Platform context:\n" + "\n\n".join(blocks)
+
+
+def analyse(
+    alerts: list[dict[str, Any]],
+    baseline: dict[str, Any],
+    llm_config: dict[str, Any],
+    embedder=None,
+    mitre_path: str | None = None,
+    platform_hints_path: str | None = None,
+) -> dict[str, Any]:
     """
     Analyse security alerts using a remote LLM server.
 
@@ -47,6 +145,8 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
         llm_config: LLM config section with base_url, api_key, model, etc.
         embedder: Optional Embedder instance for retrieving similar incidents
         mitre_path: Optional path to MITRE tactics JSON file
+        platform_hints_path: Optional path to platform false positive hints JSON file;
+            defaults to "data/platform_hints.json" if not supplied
 
     Returns:
         Analysis dict with summary, findings, and recommendations.
@@ -81,7 +181,19 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
         except Exception as e:
             logger.warning(f"Failed to load MITRE tactics: {e}")
 
-    prompt = _build_prompt(alerts, baseline, similar_incidents=similar_incidents, tactics=tactics)
+    hints_file = platform_hints_path or "data/platform_hints.json"
+    platform_hints = _load_platform_hints(hints_file)
+    platform_context = _build_platform_context(alerts, platform_hints)
+    if platform_context:
+        logger.debug("Platform context injected into prompt")
+
+    prompt = _build_prompt(
+        alerts,
+        baseline,
+        similar_incidents=similar_incidents,
+        tactics=tactics,
+        platform_context=platform_context,
+    )
 
     try:
         response = client.chat.completions.create(
@@ -111,8 +223,13 @@ def analyse(alerts: list[dict[str, Any]], baseline: dict[str, Any], llm_config: 
     return result
 
 
-def _build_prompt(alerts: list[dict[str, Any]], baseline: dict[str, Any],
-                  similar_incidents: str = "", tactics: list = []) -> str:
+def _build_prompt(
+    alerts: list[dict[str, Any]],
+    baseline: dict[str, Any],
+    similar_incidents: str = "",
+    tactics: list = [],
+    platform_context: str = "",
+) -> str:
     """Build prompt with alert summary, baseline context, and similar incidents."""
     alert_summary = _summarise_alerts(alerts)
 
@@ -124,8 +241,10 @@ def _build_prompt(alerts: list[dict[str, Any]], baseline: dict[str, Any],
     if tactics:
         mitre_reference = f"\nMITRE ATT&CK Tactics reference: {_build_mitre_reference(tactics)}"
 
-    return f"""You are a security analyst. Analyse these Wazuh alerts and provide findings.
+    platform_block = f"\n{platform_context}\n" if platform_context else ""
 
+    return f"""You are a security analyst. Analyse these Wazuh alerts and provide findings.
+{platform_block}
 Recent alerts:
 {alert_summary}
 

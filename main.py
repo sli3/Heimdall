@@ -70,7 +70,8 @@ def main() -> None:
     alerts = wazuh.fetch_alerts(hours=args.hours, agent=args.agent, level=args.level)
 
     mitre_path = config.get("mitre", {}).get("path") if "mitre" in config else None
-    analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"], embedder=embedder, mitre_path=mitre_path)
+    platform_hints_path = config.get("platform", {}).get("hints_path") if "platform" in config else None
+    analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"], embedder=embedder, mitre_path=mitre_path, platform_hints_path=platform_hints_path)
     baseline_mgr.update(analysis, rule_counts=analyser.extract_rule_counts(alerts))
 
     trends_output = None
