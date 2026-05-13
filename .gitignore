@@ -21,6 +21,7 @@ docs/yubaba-server-reference.md
 # Reports and data — generated output, not source
 reports/
 data/mitre_attack.json
+data/asd_framework.json
 data/*
 !data/platform_hints.json
 
