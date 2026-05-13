@@ -8,7 +8,7 @@ import tomllib
 from pathlib import Path
 
 from tqdm import tqdm
-from heimdall import wazuh_client, analyser, reporter, baseline, trending, embedder as embedder_module
+from heimdall import wazuh_client, analyser, reporter, baseline, trending, e8_scorer, embedder as embedder_module
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +89,10 @@ def main() -> None:
         trends_output = trend_mgr.generate(baseline_mgr.load())
 
     asd_data = analyser._load_asd_data(asd_path) if asd_path else {}
+    e8_scores = e8_scorer.score_findings(analysis.get("findings", []), asd_data) if asd_data else {}
+    matched_controls = e8_scorer.match_ism_controls(analysis.get("findings", []), asd_data) if asd_data else []
     rep = reporter.Reporter(config["reports"])
-    rep.generate(analysis, trends=trends_output, asd_data=asd_data)
+    rep.generate(analysis, trends=trends_output, asd_data=asd_data, e8_scores=e8_scores, matched_controls=matched_controls)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,32 @@ MIN_KEYWORD_LENGTH = 4
 MIN_ISM_MATCH_SCORE = 1
 
 
+def _convert_findings(findings: list[dict | str]) -> list[dict]:
+    """Convert string findings to dict format for processing.
+    
+    Args:
+        findings: List of strings or dicts.
+    
+    Returns:
+        List of dictionaries where strings are wrapped with description, rule_group, and recommendation fields.
+    """
+    if not findings:
+        return []
+    
+    converted = []
+    for f in findings:
+        if isinstance(f, dict):
+            converted.append(f)
+        elif isinstance(f, str):
+            # Wrap string as a finding with description set to the string itself
+            converted.append({
+                "description": f,
+                "rule_group": "",
+                "recommendation": ""
+            })
+    return converted
+
+
 def _extract_keywords(text: str) -> set[str]:
     """Extract meaningful keywords from a text string."""
     # Lowercase and split on whitespace/punctuation
@@ -56,18 +82,20 @@ def _normalise_findings(findings: list[dict]) -> list[str]:
 
 
 def score_findings(
-    findings: list[dict],
+    findings: list[dict | str],
     asd_data: dict,
 ) -> dict[str, dict[int, bool]]:
     """Score findings against Essential Eight strategies.
     
     Args:
-        findings: List of finding dictionaries with description, rule_group, recommendation.
+        findings: List of finding dictionaries with description, rule_group, recommendation,
+                 or strings that will be converted to dicts.
         asd_data: ASD framework data containing essential_eight entries.
     
     Returns:
         Dictionary mapping strategy names to maturity level scores (1-4, True=passing).
     """
+    findings = _convert_findings(findings)
     # Build findings keyword set
     normalised_text = _normalise_findings(findings)
     all_keywords = set()
@@ -105,20 +133,22 @@ def score_findings(
 
 
 def match_ism_controls(
-    findings: list[dict],
+    findings: list[dict | str],
     asd_data: dict,
     max_controls: int = 15,
 ) -> list[dict]:
     """Match ISM controls to relevant findings using keyword matching.
     
     Args:
-        findings: List of finding dictionaries with description, rule_group, recommendation.
+        findings: List of finding dictionaries with description, rule_group, recommendation,
+                 or strings that will be converted to dicts.
         asd_data: ASD framework data containing ism entries.
         max_controls: Maximum number of controls to return (default 15).
     
     Returns:
         List of up to max_controls ISM control dictionaries sorted by match score descending.
     """
+    findings = _convert_findings(findings)
     # Build findings keyword set
     normalised_text = _normalise_findings(findings)
     all_keywords = set()

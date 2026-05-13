@@ -11,12 +11,18 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
-def _render_asd_section(asd_data: dict) -> str:
+def _render_asd_section(
+    asd_data: dict,
+    e8_scores: Optional[dict] = None,
+    matched_controls: Optional[list] = None,
+) -> str:
     """
     Render ASD Framework section as markdown.
 
     Args:
         asd_data: Parsed ASD framework data dict from asd_framework.json.
+        e8_scores: Optional E8 scoring results mapping strategy to level scores.
+        matched_controls: Optional list of matched ISM controls.
 
     Returns:
         Markdown string for the ASD section, or empty string if no data.
@@ -37,26 +43,29 @@ def _render_asd_section(asd_data: dict) -> str:
         strategies.setdefault(s, []).append(ml)
 
     if strategies:
-        ml_levels = ["ML1", "ML2", "ML3", "ML4"]
         header = "| Strategy | ML1 | ML2 | ML3 | ML4 |"
         separator = "|----------|-----|-----|-----|-----|"
         lines.extend([header, separator])
         for strategy, mls in strategies.items():
             row = f"| {strategy} |"
             for level in [1, 2, 3, 4]:
-                row += " ✓ |" if level in mls else " - |"
+                if e8_scores and strategy in e8_scores:
+                    score = e8_scores[strategy].get(level)
+                    row += " ✓ |" if score is True else " - |"
+                else:
+                    row += " ✓ |" if level in mls else " - |"
             lines.append(row)
         lines.append("")
 
     # Relevant ISM Controls
     lines.extend(["### Relevant ISM Controls", "",])
 
-    ism_controls = asd_data.get("ism", [])
-    if ism_controls:
+    if matched_controls and len(matched_controls) > 0:
+        lines.append(f"> Showing {len(matched_controls)} controls relevant to this scan.")
         lines.append("| Control ID | Category | Description |")
         lines.append("|------------|----------|-------------|")
 
-        for control in ism_controls:
+        for control in matched_controls:
             control_id = control.get("id", "Unknown")
             category = control.get("category", "Unknown")
             description = control.get("description", "")
@@ -64,6 +73,23 @@ def _render_asd_section(asd_data: dict) -> str:
             lines.append(f"| {control_id} | {category} | {truncated_desc} |")
 
         lines.append("")
+    elif matched_controls and len(matched_controls) == 0:
+        lines.append("> No ISM controls matched findings from this scan.")
+        lines.append("")
+    else:
+        ism_controls = asd_data.get("ism", [])
+        if ism_controls:
+            lines.append("| Control ID | Category | Description |")
+            lines.append("|------------|----------|-------------|")
+
+            for control in ism_controls:
+                control_id = control.get("id", "Unknown")
+                category = control.get("category", "Unknown")
+                description = control.get("description", "")
+                truncated_desc = description[:120] if len(description) > 120 else description
+                lines.append(f"| {control_id} | {category} | {truncated_desc} |")
+
+            lines.append("")
 
     return "\n".join(lines)
 
@@ -81,7 +107,14 @@ class Reporter:
         self._output_dir = Path(config["output_dir"])
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
-    def generate(self, data: dict[str, Any], trends: Optional[str] = None, asd_data: Optional[dict[str, Any]] = None) -> None:
+    def generate(
+        self,
+        data: dict[str, Any],
+        trends: Optional[str] = None,
+        asd_data: Optional[dict[str, Any]] = None,
+        e8_scores: Optional[dict] = None,
+        matched_controls: Optional[list] = None,
+    ) -> None:
         """
         Generate markdown report from analysis data.
 
@@ -89,14 +122,29 @@ class Reporter:
             data: Analysis or baseline dict with summary, findings, recommendations.
             trends: Optional trending markdown to append to report.
             asd_data: Optional ASD framework data for Essential Eight and ISM controls.
+            e8_scores: Optional E8 scoring results.
+            matched_controls: Optional list of matched ISM controls.
         """
-        report = self._build_report(data, trends=trends, asd_data=asd_data)
+        report = self._build_report(
+            data,
+            trends=trends,
+            asd_data=asd_data,
+            e8_scores=e8_scores,
+            matched_controls=matched_controls,
+        )
         filename = self._output_dir / f"{datetime.now().strftime('%Y-%m-%d')}_security_report.md"
         with filename.open("w") as f:
             f.write(report)
         logger.info(f"Report written to {filename}")
 
-    def _build_report(self, data: dict[str, Any], trends: Optional[str] = None, asd_data: dict[str, Any] = None) -> str:
+    def _build_report(
+        self,
+        data: dict[str, Any],
+        trends: Optional[str] = None,
+        asd_data: Optional[dict[str, Any]] = None,
+        e8_scores: Optional[dict] = None,
+        matched_controls: Optional[list] = None,
+    ) -> str:
         """Build markdown report content."""
         lines = [
             "# Security Report",
@@ -148,7 +196,7 @@ class Reporter:
         if asd_data:
             lines.extend([
                 "",
-                _render_asd_section(asd_data),
+                _render_asd_section(asd_data, e8_scores=e8_scores, matched_controls=matched_controls),
             ])
 
         # Historical trends — supporting data
