@@ -78,8 +78,9 @@ def main() -> None:
     alerts = wazuh.fetch_alerts(hours=args.hours, agent=args.agent, level=args.level)
 
     mitre_path = config.get("mitre", {}).get("path") if "mitre" in config else None
+    asd_path = config.get("asd", {}).get("path") if "asd" in config else None
     platform_hints_path = config.get("platform", {}).get("hints_path") if "platform" in config else None
-    analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"], embedder=embedder, mitre_path=mitre_path, platform_hints_path=platform_hints_path, show_progress=show_progress)
+    analysis = analyser.analyse(alerts, baseline_mgr.load(), config["llm"], embedder=embedder, mitre_path=mitre_path, asd_path=asd_path, platform_hints_path=platform_hints_path, show_progress=show_progress)
     baseline_mgr.update(analysis, rule_counts=analyser.extract_rule_counts(alerts))
 
     trends_output = None
@@ -87,8 +88,9 @@ def main() -> None:
         trend_mgr = trending.Trending(config["trending"])
         trends_output = trend_mgr.generate(baseline_mgr.load())
 
+    asd_data = analyser._load_asd_data(asd_path) if asd_path else {}
     rep = reporter.Reporter(config["reports"])
-    rep.generate(analysis, trends=trends_output)
+    rep.generate(analysis, trends=trends_output, asd_data=asd_data)
 
 
 if __name__ == "__main__":

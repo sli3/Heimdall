@@ -571,6 +571,101 @@ within Australian compliance contexts without manual cross-referencing.
 
 ---
 
+### 8. Essential Eight Compliance Scoring + ISM Alert Mapping
+
+**What it does:**
+After each analysis run, maps findings against both the Essential Eight
+strategies and ISM controls to produce scan-relevant output. The E8 table
+becomes a compliance posture indicator (✓ / -) and the ISM controls table
+shrinks to only the controls relevant to what was actually found — instead
+of always showing the same 78 controls regardless of scan content.
+
+**Sessions: 3**
+
+---
+
+#### Session 1 — heimdall/e8_scorer.py (new module)
+
+New module with two public functions:
+
+```python
+def score_findings(
+    findings: list[dict],
+    asd_data: dict,
+) -> dict[str, dict[int, bool]]:
+    """
+    Map findings against Essential Eight strategies and maturity levels.
+
+    Returns: { strategy_name: { 1: True, 2: False, 3: False, 4: False } }
+    True  = no evidence of failure at this level
+    False = finding suggests control failure at this level
+    """
+
+def match_ism_controls(
+    findings: list[dict],
+    asd_data: dict,
+    max_controls: int = 15,
+) -> list[dict]:
+    """
+    Return ISM controls relevant to the current scan findings.
+
+    Matches finding descriptions against ISM control descriptions using
+    keyword overlap. Returns up to max_controls most relevant controls,
+    sorted by match score descending. Falls back to full list if no
+    matches found.
+    """
+```
+
+Matching approach (no second LLM call — keyword only):
+- For E8: match finding description keywords against strategy names and
+  maturity level descriptions
+- For ISM: score each control by counting keyword overlaps between the
+  finding description and the control description + category
+- A finding mapped to an E8 strategy marks ML1 as False (ML1 failure
+  implies all higher levels also fail)
+- ISM controls ranked by cumulative match score across all findings
+
+---
+
+#### Session 2 — Wire into main.py + reporter.py
+
+- `main.py`:
+  - Call `e8_scorer.score_findings()` after analysis
+  - Call `e8_scorer.match_ism_controls()` after analysis
+  - Pass both results to `reporter.generate()`
+
+- `reporter.py`: update `_render_asd_section()` to accept:
+  - `e8_scores` dict → dynamic ✓ / - table instead of static all-✓
+  - `matched_controls` list → replace full 78-control table with
+    scan-relevant subset only
+  - If no matches found → show message:
+    `> No ISM controls matched findings from this scan.`
+
+---
+
+#### Session 3 — Validation + tuning
+
+- Run against a live batch with known alert types
+- Verify E8 scoring produces sensible strategy mappings
+- Verify ISM controls returned are relevant to the alerts found
+- Tune keyword matching in `e8_scorer.py` based on results
+- Document override keywords in `data/e8_keyword_overrides.json`
+  (same extensible pattern as `platform_hints.json`)
+- If keyword accuracy proves insufficient, Session 3 can optionally
+  introduce embedding similarity matching using the existing `Embedder`
+  as a drop-in upgrade — same interface, no downstream changes needed
+
+---
+
+**Key constraints:**
+- No second LLM call — all matching must be fast and fully offline
+- Keyword matching only in Sessions 1 and 2
+- Embedder upgrade is optional and only if keyword accuracy is poor
+- `e8_scorer.py` has no dependencies on any other Heimdall module
+  except the `asd_data` dict it receives as a parameter
+
+---
+
 ## Suggested Build Order
 
 1. ~~Historical Trending~~ — Complete ✅

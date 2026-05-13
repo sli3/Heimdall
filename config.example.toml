@@ -41,6 +41,9 @@ model = "Qwen3-Embedding-0.6B"
 chroma_db_path = "~/.heimdall/chromadb"
 top_k = 5
 
+[asd]
+path = "data/asd_framework.json"
+
 [platform]
 # Path to platform false positive hint table
 # Edit this file directly to add new hints — no code change required
