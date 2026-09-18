@@ -35,18 +35,15 @@ description: Logic and syntax verification for Python code. Run when user says "
    Look for operations that would fail or corrupt state on a second run.
 
 5. **Second-pass review**
-   Invoke `@minimax-reviewer` on the changed file or function:
-   > "@minimax-reviewer review the change to [file.py]"
+   Invoke `@deep-bug-hunter` in Mode 1 (post-edit review) on the changed file or function:
+   > "@deep-bug-hunter review the change to [file.py]"
 
    Wait for the reviewer output before continuing.
    Present the reviewer findings beneath the sanity check report.
 
-   <!-- @local-reviewer available as alternative when yubaba is free:
-   "@local-reviewer review the change to [file.py]" -->
-
 6. **Approval gate**
    After presenting both the sanity check report and the reviewer output, ask:
-   > "Sanity check and local review complete — OK to proceed to git-workflow?
+   > "Sanity check and review complete — OK to proceed to git-workflow?
    > (Yes / No)"
 
    Do not trigger or suggest git-workflow until the user says Yes.
@@ -61,9 +58,9 @@ Syntax:         [Passed / Failed — reason]
 Logic:          [Passed / Warnings — list]
 Error Handling: [Passed / Concerns — list]
 Idempotency:    [Passed / Concern — description]
-Local Reviewer Output:
+Reviewer Output (@deep-bug-hunter):
 ──────────────────────────────────
-[bullet points from @minimax-reviewer]
+[bullet points from @deep-bug-hunter]
 Result: ✅ Ready for git-workflow / ⚠️ Issues found — review before proceeding
 
 ---
@@ -71,7 +68,7 @@ Result: ✅ Ready for git-workflow / ⚠️ Issues found — review before proce
 ### Rules
 
 - Never modify the file during a sanity check — report only
-- Never skip the @minimax-reviewer step if syntax passes
+- Never skip the @deep-bug-hunter step if syntax passes
 - Never proceed to git-workflow without explicit Yes from the user
 - If syntax fails, stop at step 1 — do not run logic checks or reviewer
 - Always run this before git-workflow on a Code session
