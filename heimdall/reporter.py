@@ -145,7 +145,7 @@ class Reporter:
         e8_scores: Optional[dict] = None,
         matched_controls: Optional[list] = None,
     ) -> str:
-        """Build markdown report content."""
+        """Build the full markdown report body from analysis data, optional trends, and optional ASD framework context."""
         lines = [
             "# Security Report",
             "",
