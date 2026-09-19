@@ -51,6 +51,8 @@ Stop immediately and report to Prin if any occur:
 - Tests still failing after 3 fix-loop iterations
 - Any agent's output contradicts `AGENTS.md`
 - A PM-audit re-entry (Step 5) fails to resolve on its single allowed retry
+- A roadmap edit is denied, or the build would need to change anything in
+  `docs/HEIMDALL_ROADMAP.md` other than the Feature Status table
 
 Do not work around a hard stop. Surface it clearly.
 
@@ -59,6 +61,12 @@ Do not work around a hard stop. Surface it clearly.
 ## WORKFLOW
 
 ### STEP 1 — PLAN
+
+`@plan-reviewer` runs on every `/build`, without exception. That includes
+verification-only tasks and tasks where you expect to change nothing: you may
+not mark this step N/A, skip it, or substitute your own review of the plan. If
+your context-gathering shows nothing needs to change, that finding is a plan
+too — send it to `@plan-reviewer` like any other.
 
 Before calling `@plan-reviewer`, establish prior session context:
 1. Find and read the most recent session memo, if one exists:
@@ -80,7 +88,12 @@ Wait for completion. If a ❌ BLOCKER is raised → stop and report.
 
 ### STEP 2 — CODE
 
-Delegate implementation to `@code-writer`. Hand it: the approved plan, the
+If the plan `@plan-reviewer` approved requires no change to any source, test or
+config file (verification only), skip Steps 2 to 4, say that you did so and why,
+and go to Step 5. This applies only after `@plan-reviewer` has run. Any change
+to a source, test or config file goes through `@code-writer`.
+
+Otherwise, delegate implementation to `@code-writer`. Hand it: the approved plan, the
 prior session context, and the same explicit file scope from Step 1.
 Instruct it to follow `AGENTS.md`'s Python style rules and write the
 implementation and its tests together.
@@ -136,6 +149,8 @@ Review the full output of Steps 1–4 before anything is presented. Check:
 - Did any step produce a partial, skipped, or "good enough" result?
 - Does the build match what was planned in Step 1?
 - Does anything touch `config.toml` or contradict `AGENTS.md`?
+- Did `@plan-reviewer` run on this build? A build without a plan review is not
+  clean — re-run from Step 1
 
 Clean → proceed to Step 6. Flagged → re-enter ONLY the affected step:
 - Missed/ignored review finding → re-run from Step 4
@@ -145,9 +160,15 @@ Clean → proceed to Step 6. Flagged → re-enter ONLY the affected step:
 Each flagged issue gets EXACTLY ONE re-entry pass. If the re-run still does
 not resolve it → hard stop, escalate to Prin.
 
-### STEP 6 — REPORT
+### STEP 6 — ROADMAP STATUS, THEN REPORT
 
-Produce a structured summary containing:
+First, follow the ROADMAP STATUS UPDATES section of your own agent definition:
+decide whether this build changed any feature's status. If it did, update the
+Feature Status table in `docs/HEIMDALL_ROADMAP.md` (and nothing else in that
+file), then run `git --no-pager diff docs/HEIMDALL_ROADMAP.md`. If nothing
+changed, edit nothing.
+
+Then produce a structured summary containing:
 - What was built (files changed, functions added/modified)
 - Test results — re-run the suite one final time yourself and report the
   live count; do not carry forward a number from an earlier step
@@ -156,6 +177,7 @@ Produce a structured summary containing:
 - Code-review findings from `@deep-bug-hunter` and how they were resolved
 - PM audit result (clean, or what was flagged and how the re-entry resolved)
 - Any tech debt or follow-up items identified during the build
+- Roadmap status: "unchanged", or the diff of the Feature Status table edit
 - A reminder to Prin: if any `[section]` was added to `config.example.toml`
   this build, it must be copied into the live `config.toml` by hand — no
   agent touches that file
@@ -166,4 +188,4 @@ Mistakes Made and Not Finished from Step 5's audit and the fix-loop history.
 Confirm with the file path only.
 
 Do NOT commit. Do NOT push. Prin handles all git operations manually via the
-git-workflow skill.
+git-workflow skill. A roadmap edit, if any, stays uncommitted for Prin's review.

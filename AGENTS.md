@@ -36,7 +36,7 @@ cannot drift out of date.
 
 | Agent | Mode | Purpose |
 |-------|------|---------|
-| `pm` | primary | Orchestrates a build, gates output, writes the session memo |
+| `pm` | primary | Orchestrates a build, gates output, writes the session memo, keeps the roadmap's Feature Status table current |
 | `plan-reviewer` | subagent | Read-only plan and scope gate |
 | `code-writer` | subagent | Writes and edits source and tests |
 | `deep-bug-hunter` | subagent | Read-only post-edit review and root-cause analysis |
@@ -54,8 +54,10 @@ date — do not attempt it. Report it to Prin instead.
 
 - Never edit `config.toml` — it holds live credentials. Only `config.example.toml`
   changes; Prin copies new sections across by hand
-- `AGENTS.md`, `docs/HEIMDALL_ROADMAP.md`, `opencode.json` and everything under
-  `.opencode/` are edited by Prin only
+- `AGENTS.md`, `opencode.json` and everything under `.opencode/` are edited by
+  Prin only. `docs/HEIMDALL_ROADMAP.md` is also Prin's, with one exception: `pm`
+  updates its Feature Status table after a `/build` run (rules in `pm`'s own
+  file). No other agent edits it
 - Never `git push` without explicit approval
 - Never use `--force` in Git
 - Always show `git diff` and wait for "OK" before committing
@@ -134,4 +136,5 @@ directly for anything else.
 ## Roadmap
 
 Future planned features are documented in `docs/HEIMDALL_ROADMAP.md`.
-Read this at the start of any Plan session for a new feature. Agents treat it as read-only.
+Read this at the start of any Plan session for a new feature. Agents treat it as read-only,
+except for `pm`'s Feature Status updates.
