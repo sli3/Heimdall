@@ -1,0 +1,180 @@
+"""
+Tests for platform hints loading and platform context block construction
+in heimdall.analyser.
+"""
+
+import json
+import logging
+from pathlib import Path
+from typing import Any
+
+from heimdall.analyser import _build_platform_context, _load_platform_hints
+
+FREEBSD_HINT = (
+    "Link count mismatches on /boot/efi are a structural FAT32 artefact on "
+    "FreeBSD/OPNsense — not an indicator of rootkit activity. Do not escalate."
+)
+
+FREEBSD_HINTS: dict[str, Any] = {
+    "freebsd": {
+        "description": "FreeBSD and derivatives (OPNsense, pfSense)",
+        "filesystem_notes": (
+            "FAT32 (EFI partition) does not implement Unix hard link counts."
+        ),
+        "rules": {
+            "510": {
+                "paths": ["/boot/efi"],
+                "hint": FREEBSD_HINT,
+            }
+        },
+    }
+}
+
+
+def _make_alert(
+    agent_name: str,
+    platform: str,
+    rule_id: str,
+    os_name: str = "FreeBSD",
+    rule_description: str = "FIM: Hard link count changed",
+) -> dict[str, Any]:
+    """Build a Wazuh-shaped alert dict for testing."""
+    return {
+        "_source": {
+            "agent": {
+                "name": agent_name,
+                "os": {"platform": platform, "name": os_name},
+            },
+            "rule": {"id": rule_id, "description": rule_description},
+        }
+    }
+
+
+def test_load_platform_hints_missing_file_returns_empty_and_logs_warning(
+    tmp_path: Path, caplog: Any
+) -> None:
+    """Missing hints file returns {} and logs a warning."""
+    caplog.set_level(logging.WARNING, logger="heimdall.analyser")
+    missing = str(tmp_path / "does_not_exist.json")
+    result = _load_platform_hints(missing)
+    assert result == {}
+    assert any(
+        "Platform hints file not found" in rec.message for rec in caplog.records
+    )
+
+
+def test_load_platform_hints_malformed_json_returns_empty(
+    tmp_path: Path, caplog: Any
+) -> None:
+    """Malformed JSON returns {} without raising."""
+    caplog.set_level(logging.WARNING, logger="heimdall.analyser")
+    bad_file = tmp_path / "bad.json"
+    bad_file.write_text("{ not valid json", encoding="utf-8")
+    result = _load_platform_hints(str(bad_file))
+    assert result == {}
+    assert any(
+        "Failed to parse platform hints file" in rec.message
+        for rec in caplog.records
+    )
+
+
+def test_load_platform_hints_valid_json_returns_dict(tmp_path: Path) -> None:
+    """Valid JSON file returns the parsed dict."""
+    hints_file = tmp_path / "hints.json"
+    hints_file.write_text(json.dumps(FREEBSD_HINTS), encoding="utf-8")
+    result = _load_platform_hints(str(hints_file))
+    assert result == FREEBSD_HINTS
+
+
+def test_build_platform_context_freebsd_with_rule_510() -> None:
+    """FreeBSD agent with rule 510 in batch yields full block with rule hint."""
+    alerts = [_make_alert("fw1", "freebsd", "510")]
+    context = _build_platform_context(alerts, FREEBSD_HINTS)
+    assert context.startswith("Platform context:\n")
+    lines = context.split("\n")
+    assert lines[1].startswith("- Agent: fw1 (freebsd — FreeBSD and derivatives")
+    assert "FAT32 (EFI partition) does not implement Unix hard link counts." in context
+    assert "Known false positives for this platform:" in context
+    assert f"  - Rule 510 on /boot/efi: {FREEBSD_HINT}" in context
+
+
+def test_build_platform_context_freebsd_without_rule_510() -> None:
+    """FreeBSD agent without rule 510 yields agent and notes lines, no rule hints."""
+    alerts = [_make_alert("fw1", "freebsd", "5712")]
+    context = _build_platform_context(alerts, FREEBSD_HINTS)
+    assert context != ""
+    assert "- Agent: fw1 (freebsd — FreeBSD and derivatives" in context
+    assert "FAT32 (EFI partition) does not implement Unix hard link counts." in context
+    assert "Known false positives" not in context
+
+
+def test_build_platform_context_case_insensitive_platform() -> None:
+    """Capitalised platform value matches lowercase hints key."""
+    alerts = [_make_alert("fw1", "FreeBSD", "510")]
+    context = _build_platform_context(alerts, FREEBSD_HINTS)
+    assert "Known false positives for this platform:" in context
+    assert "Rule 510 on /boot/efi" in context
+
+
+def test_build_platform_context_missing_platform_yields_empty() -> None:
+    """Alert without agent.os.platform yields empty string."""
+    alerts = [
+        {
+            "_source": {
+                "agent": {"name": "fw1"},
+                "rule": {"id": "510", "description": "FIM event"},
+            }
+        }
+    ]
+    assert _build_platform_context(alerts, FREEBSD_HINTS) == ""
+
+
+def test_build_platform_context_unknown_platform_yields_empty() -> None:
+    """Alert with platform absent from hints keys yields empty string."""
+    alerts = [_make_agent_alert("srv1", "aix", "7")]
+    assert _build_platform_context(alerts, FREEBSD_HINTS) == ""
+
+
+def test_build_platform_context_empty_hints_yields_empty() -> None:
+    """Empty hints dict yields empty string."""
+    alerts = [_make_alert("fw1", "freebsd", "510")]
+    assert _build_platform_context(alerts, {}) == ""
+
+
+def test_build_platform_context_two_platforms_two_blocks() -> None:
+    """Two distinct platforms each produce a block separated by a blank line."""
+    linux_hints: dict[str, Any] = {
+        "freebsd": FREEBSD_HINTS["freebsd"],
+        "linux": {
+            "description": "Generic Linux hosts",
+            "filesystem_notes": "procfs and sysfs expose volatile link counts.",
+            "rules": {
+                "5712": {
+                    "paths": ["/proc"],
+                    "hint": "Link count noise under /proc is expected on Linux.",
+                }
+            },
+        },
+    }
+    alerts = [
+        _make_alert("fw1", "freebsd", "510"),
+        _make_agent_alert("srv1", "linux", "5712"),
+    ]
+    context = _build_platform_context(alerts, linux_hints)
+    assert context.startswith("Platform context:\n")
+    blocks = context[len("Platform context:\n"):].split("\n\n")
+    assert len(blocks) == 2
+    assert "freebsd — FreeBSD and derivatives" in blocks[0]
+    assert "Rule 510 on /boot/efi" in blocks[0]
+    assert "linux — Generic Linux hosts" in blocks[1]
+    assert "Rule 5712 on /proc" in blocks[1]
+
+
+def _make_agent_alert(agent_name: str, platform: str, rule_id: str) -> dict[str, Any]:
+    """Build an alert without an os.name field for unknown-platform tests."""
+    return {
+        "_source": {
+            "agent": {"name": agent_name, "os": {"platform": platform}},
+            "rule": {"id": rule_id, "description": "Some event"},
+        }
+    }
