@@ -27,9 +27,10 @@ The base project is complete. All modules are working end-to-end:
 | MITRE ATT&CK Tagging | ✅ Complete | Tactic reference injected into LLM prompt, tags in report |
 | Multi-Model Routing | ~~Superseded~~ | See note below |
 | Embedding Model | ✅ Complete | 89 vectors stored, retrieval confirmed working |
-| Platform-Aware Alert Context | 🔲 Queued | Platform/rule hint table injected into prompt; addresses FreeBSD false positives |
-| Progress Bar + LLM Streaming | 🔲 Planned | tqdm bars + stream=True token counter in analyser |
-| ASD Framework Mapping | 🔲 Planned | Essential Eight + ISM curated subset; same pattern as MITRE tagging |
+| Platform-Aware Alert Context | ✅ Complete | `data/platform_hints.json` with FreeBSD rule 510 hint, `_load_platform_hints()` + `_build_platform_context()` in `heimdall/analyser.py`, `[platform]` section in `config.example.toml` (commit `81f9326`) |
+| Progress Bar + LLM Streaming | ✅ Complete | Part A — `tqdm` bars in `wazuh_client.py` / `embedder.py` (commit `da2b066`); Part B — `stream=True` token counter in `heimdall/analyser.py` (commit `b29f77b`); `tqdm>=4.66` in `requirements.txt`, `show_progress` plumbed through `main.py` |
+| ASD Framework Mapping | ✅ Complete | `scripts/asd_sync.py` syncs Essential Eight + ISM (commit `42c816b`); ASD context injected in `heimdall/analyser.py` (commit `c23ce1e`); `_render_asd_section()` in `heimdall/reporter.py` (commit `861becf`); ASD path wired in `main.py`, `[asd]` section in `config.example.toml` (commit `eda966f`) |
+| Essential Eight Compliance Scoring + ISM Alert Mapping | ✅ Complete | `heimdall/e8_scorer.py` (`score_findings()` / `match_ism_controls()`, commit `b1deb3e`); wired into `main.py` and reporter rendering (commit `2e2b4d9`); per-strategy keyword overrides in `data/e8_keyword_overrides.json` (commit `03c0cb3`); `[e8]` section in `config.example.toml` |
 
 ---
 
