@@ -17,7 +17,7 @@ permission in this project.
 ```
    Summarise in one sentence what this Code session is supposed to do.
 
-1b. **If this is a roadmap feature session**, read the relevant feature section from `HEIMDALL_ROADMAP.md` before stating scope.
+1b. **If this is a roadmap feature session**, read the relevant feature section from `docs/HEIMDALL_ROADMAP.md` before stating scope.
 
 2. **Check previous mistakes** — look for `## Mistakes Made` in memo:
    - Read each mistake aloud

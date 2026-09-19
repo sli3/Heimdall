@@ -63,7 +63,7 @@ Do not work around a hard stop. Surface it clearly.
 Before calling `@plan-reviewer`, establish prior session context:
 1. Find and read the most recent session memo, if one exists:
    `ls -t .session-memos/*.md 2>/dev/null | head -1`
-2. Read `AGENTS.md` and the relevant section of `HEIMDALL_ROADMAP.md` for
+2. Read `AGENTS.md` and the relevant section of `docs/HEIMDALL_ROADMAP.md` for
    this task's feature.
 3. Note: last recorded status, any open deferred items, open bugs.
 

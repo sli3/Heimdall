@@ -14,6 +14,7 @@ permission:
     "python3 -m py_compile *": allow
     "ruff check *": allow
     "ls -t *": allow
+    "head *": allow
     "cat *": allow
     "git status*": allow
     "git --no-pager diff*": allow
@@ -84,6 +85,13 @@ Stop immediately and report to Prin if any occur:
 - Tests still failing after 3 fix-loop iterations
 - Any agent's output contradicts `AGENTS.md`
 - A PM-audit re-entry fails to resolve on its single allowed retry
+- A required subagent (`@plan-reviewer`, `@code-writer`, `@deep-bug-hunter`)
+  cannot be invoked — wrong model, missing provider auth, or any other
+  failure. Never substitute a different agent type (e.g. the built-in
+  `general` agent) to route around this. A substitute agent does not carry
+  that subagent's permission scoping, and using one defeats the entire
+  point of the permission split. Stop and report exactly which agent failed
+  and why.
 
 Do not work around a hard stop. Surface it clearly.
 
