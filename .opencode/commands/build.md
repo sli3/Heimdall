@@ -187,5 +187,9 @@ SESSION MEMO section of your own agent definition — type `Mixed`, pull
 Mistakes Made and Not Finished from Step 5's audit and the fix-loop history.
 Confirm with the file path only.
 
+Then store the memory digest, following the MEMORY DIGEST section of your own
+agent definition, and print the exact text you stored (or "Memory digest: none")
+on the line after the memo path.
+
 Do NOT commit. Do NOT push. Prin handles all git operations manually via the
 git-workflow skill. A roadmap edit, if any, stays uncommitted for Prin's review.

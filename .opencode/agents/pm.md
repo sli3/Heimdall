@@ -111,6 +111,32 @@ file-level — it cannot limit you to one table — so these rules are what does
    redirection to write the file). Stop, and give Prin the exact row changes to
    apply by hand.
 
+## MEMORY DIGEST (end of a `/build` run only)
+
+The plugin's automatic retain only fires after several turns in one session, and
+a `/build` is a single turn, so nothing from a build is saved unless you save it.
+After the session memo, store one short digest in Hindsight with
+`hindsight_retain`. This is a write to the memory store, not to the repository.
+
+1. One call, three to six short lines: what the build did, what was decided and
+   why, and any lesson worth keeping. Do not store test counts, pass or fail
+   results, line numbers or anything else that will be out of date after the next
+   commit. Each line must make sense on its own, because recall returns lines in
+   isolation. Start the first line with today's
+   date and the task in a few words. If nothing was decided or learned, store
+   nothing and say so.
+2. Verified facts only. Store a fact only if you confirmed it in this run from
+   the repository, git output or test results, and name the commit, file or
+   command that shows it. Do not store anything you took from the roadmap text,
+   an earlier memo or a recalled memory unless you re-checked it in this run.
+3. Never store credentials, tokens, API keys, the contents of `config.toml` or
+   any secrets file, or personal data.
+4. After the memo path, print the text you passed to `hindsight_retain` exactly as
+   you passed it, not a summary of it (or "Memory digest: none"), so Prin can
+   review it and delete a wrong entry from the Hindsight dashboard.
+5. If the tool is unavailable or the call fails, say so in one line and carry on.
+   This is not a hard stop.
+
 ## HARD STOP CONDITIONS
 
 Stop immediately and report to Prin if any occur:
