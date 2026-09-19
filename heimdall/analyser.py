@@ -138,6 +138,7 @@ def _build_platform_context(alerts: list[dict[str, Any]], hints: dict) -> str:
     Extracts distinct agent.os.platform values from the alert batch, looks up
     matching hints for the rule IDs present, and returns a formatted context block.
     Returns an empty string if no platform matches are found — caller skips silently.
+    Alerts with null _source/agent/os/platform/rule fields are skipped silently.
     """
     if not hints:
         return ""
@@ -145,10 +146,19 @@ def _build_platform_context(alerts: list[dict[str, Any]], hints: dict) -> str:
     # Collect distinct platforms and representative agent info
     seen_platforms: dict[str, dict[str, Any]] = {}
     for alert in alerts:
-        source = alert.get("_source", {})
-        agent = source.get("agent", {})
-        os_info = agent.get("os", {})
-        platform = os_info.get("platform", "").lower()
+        source = alert.get("_source")
+        if source is None:
+            continue
+        agent = source.get("agent")
+        if agent is None:
+            continue
+        os_info = agent.get("os")
+        if os_info is None:
+            continue
+        platform = os_info.get("platform")
+        if platform is None:
+            continue
+        platform = platform.lower()
         if not platform:
             continue
         if platform not in seen_platforms:
@@ -163,8 +173,13 @@ def _build_platform_context(alerts: list[dict[str, Any]], hints: dict) -> str:
     # Collect all rule IDs present in this alert batch
     batch_rule_ids: set[str] = set()
     for alert in alerts:
-        source = alert.get("_source", {})
-        rule_id = str(source.get("rule", {}).get("id", ""))
+        source = alert.get("_source")
+        if source is None:
+            continue
+        rule = source.get("rule")
+        if rule is None:
+            continue
+        rule_id = str(rule.get("id", ""))
         if rule_id:
             batch_rule_ids.add(rule_id)
 

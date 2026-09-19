@@ -178,3 +178,91 @@ def _make_agent_alert(agent_name: str, platform: str, rule_id: str) -> dict[str,
             "rule": {"id": rule_id, "description": "Some event"},
         }
     }
+
+
+def test_build_platform_context_null_source_yields_empty() -> None:
+    """Alert with _source explicitly null yields empty string."""
+    alerts = [{"_source": None}]
+    assert _build_platform_context(alerts, FREEBSD_HINTS) == ""
+
+
+def test_build_platform_context_null_agent_yields_empty() -> None:
+    """Alert with agent explicitly null yields empty string."""
+    alerts = [
+        {
+            "_source": {
+                "agent": None,
+                "rule": {"id": "510", "description": "FIM event"},
+            }
+        }
+    ]
+    assert _build_platform_context(alerts, FREEBSD_HINTS) == ""
+
+
+def test_build_platform_context_null_os_yields_empty() -> None:
+    """Alert with agent.os explicitly null yields empty string."""
+    alerts = [
+        {
+            "_source": {
+                "agent": {"name": "fw1", "os": None},
+                "rule": {"id": "510", "description": "FIM event"},
+            }
+        }
+    ]
+    assert _build_platform_context(alerts, FREEBSD_HINTS) == ""
+
+
+def test_build_platform_context_null_platform_yields_empty() -> None:
+    """Alert with agent.os.platform explicitly null yields empty string."""
+    alerts = [
+        {
+            "_source": {
+                "agent": {"name": "fw1", "os": {"platform": None}},
+                "rule": {"id": "510", "description": "FIM event"},
+            }
+        }
+    ]
+    assert _build_platform_context(alerts, FREEBSD_HINTS) == ""
+
+
+def test_build_platform_context_null_rule_skipped() -> None:
+    """Alert with rule null is skipped; valid alert still yields rule hint block."""
+    alerts = [
+        {"_source": {"agent": {"name": "fw1"}, "rule": None}},
+        _make_alert("fw1", "freebsd", "510"),
+    ]
+    context = _build_platform_context(alerts, FREEBSD_HINTS)
+    assert context != ""
+    assert FREEBSD_HINT in context
+
+
+def test_build_platform_context_mixed_nulls_with_valid_freebsd() -> None:
+    """Batch mixing all null variants with one valid alert yields full block."""
+    alerts = [
+        {"_source": None},
+        {
+            "_source": {
+                "agent": None,
+                "rule": {"id": "510", "description": "FIM event"},
+            }
+        },
+        {
+            "_source": {
+                "agent": {"name": "fw1", "os": None},
+                "rule": {"id": "510", "description": "FIM event"},
+            }
+        },
+        {
+            "_source": {
+                "agent": {"name": "fw1", "os": {"platform": None}},
+                "rule": {"id": "510", "description": "FIM event"},
+            }
+        },
+        {"_source": {"agent": {"name": "fw1"}, "rule": None}},
+        _make_alert("fw1", "freebsd", "510"),
+    ]
+    context = _build_platform_context(alerts, FREEBSD_HINTS)
+    assert context.startswith("Platform context:\n")
+    assert "Rule 510 on /boot/efi" in context
+    assert FREEBSD_HINT in context
+    assert "FAT32 (EFI partition) does not implement Unix hard link counts." in context
