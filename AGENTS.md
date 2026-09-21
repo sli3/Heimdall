@@ -52,8 +52,8 @@ date — do not attempt it. Report it to Prin instead.
 
 ## Safety Gates
 
-- Never edit `config.toml` — it holds live credentials. Only `config.example.toml`
-  changes; Prin copies new sections across by hand
+- Never edit `config.toml`, and never open, print or quote its contents — it holds live
+  credentials. Only `config.example.toml` changes; Prin copies new sections across by hand
 - `AGENTS.md`, `opencode.json` and everything under `.opencode/` are edited by
   Prin only. `docs/HEIMDALL_ROADMAP.md` is also Prin's, with one exception: `pm`
   updates its Feature Status table after a `/build` run (rules in `pm`'s own
