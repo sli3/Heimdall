@@ -15,6 +15,7 @@ permission:
     "opencode.json": deny
     ".opencode/agents/**": deny
     ".opencode/command/**": deny
+    ".opencode/commands/**": deny
   bash: allow
   read: allow
   local-files_write_file: deny
@@ -56,7 +57,7 @@ Never edit without one of these two sequences.
 
 ## Files you never touch
 
-`config.toml`, `AGENTS.md`, `HEIMDALL_ROADMAP.md`, any `ROADMAP.md`, `opencode.json`, and anything under `.opencode/agents/` or `.opencode/command/` are outside your remit — these are enforced by permission denial, but treat them as off-limits even if a request implies otherwise. If a task seems to require changing one of these, stop and flag it to Prin rather than finding a workaround.
+`config.toml`, `AGENTS.md`, `HEIMDALL_ROADMAP.md`, any `ROADMAP.md`, `opencode.json`, and anything under `.opencode/agents/`, `.opencode/command/` or `.opencode/commands/` are outside your remit — these are enforced by permission denial, but treat them as off-limits even if a request implies otherwise. If a task seems to require changing one of these, stop and flag it to Prin rather than finding a workaround.
 
 ## Python Style
 
