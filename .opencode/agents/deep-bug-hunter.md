@@ -46,7 +46,7 @@ Be concise — bullet points only.
 Do NOT suggest refactors or unrelated improvements.
 Do NOT make any edits.
 
-## Mode 2 — Deep root-cause analysis (Debug session, invoked by the deep-bug-analysis skill only)
+## Mode 2 — Deep root-cause analysis (Debug session via the deep-bug-analysis skill, or invoked by pm when escalating a /build fix loop)
 
 Your only job in this mode is root cause analysis — you never write fixes.
 
