@@ -266,3 +266,56 @@ def test_build_platform_context_mixed_nulls_with_valid_freebsd() -> None:
     assert "Rule 510 on /boot/efi" in context
     assert FREEBSD_HINT in context
     assert "FAT32 (EFI partition) does not implement Unix hard link counts." in context
+
+
+def test_build_platform_context_null_agent_name_renders_unknown() -> None:
+    """Null agent.name renders as 'unknown' rather than the literal None."""
+    alerts = [
+        {
+            "_source": {
+                "agent": {
+                    "name": None,
+                    "os": {"platform": "freebsd", "name": "FreeBSD"},
+                },
+                "rule": {"id": "510", "description": "FIM event"},
+            }
+        }
+    ]
+    context = _build_platform_context(alerts, FREEBSD_HINTS)
+    assert context.startswith("Platform context:\n")
+    assert "- Agent: unknown (freebsd" in context
+    assert "Agent: None" not in context
+    assert "FAT32 (EFI partition) does not implement Unix hard link counts." in context
+    assert "Rule 510 on /boot/efi" in context
+
+
+def test_build_platform_context_null_rule_id_does_not_match_None_hint() -> None:
+    """Null rule.id is skipped and never matches a hint keyed 'None'."""
+    hints: dict[str, Any] = {
+        "freebsd": {
+            "description": FREEBSD_HINTS["freebsd"]["description"],
+            "filesystem_notes": FREEBSD_HINTS["freebsd"]["filesystem_notes"],
+            "rules": {
+                **FREEBSD_HINTS["freebsd"]["rules"],
+                "None": {
+                    "paths": ["/var/log/null-id.log"],
+                    "hint": "should-never-appear-in-output",
+                },
+            },
+        }
+    }
+    alerts = [
+        {
+            "_source": {
+                "agent": {
+                    "name": "fw1",
+                    "os": {"platform": "freebsd", "name": "FreeBSD"},
+                },
+                "rule": {"id": None, "description": "FIM event"},
+            }
+        }
+    ]
+    context = _build_platform_context(alerts, hints)
+    assert context != ""
+    assert "should-never-appear-in-output" not in context
+    assert "Rule None" not in context

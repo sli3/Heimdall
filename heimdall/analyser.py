@@ -162,9 +162,13 @@ def _build_platform_context(alerts: list[dict[str, Any]], hints: dict) -> str:
         if not platform:
             continue
         if platform not in seen_platforms:
+            agent_name = agent.get("name")
+            if agent_name is None:
+                agent_name = "unknown"
+            os_name = os_info.get("name", platform)
             seen_platforms[platform] = {
-                "agent_name": agent.get("name", "unknown"),
-                "os_name": os_info.get("name", platform),
+                "agent_name": agent_name,
+                "os_name": os_name,
             }
 
     if not seen_platforms:
@@ -179,7 +183,10 @@ def _build_platform_context(alerts: list[dict[str, Any]], hints: dict) -> str:
         rule = source.get("rule")
         if rule is None:
             continue
-        rule_id = str(rule.get("id", ""))
+        raw_rule_id = rule.get("id")
+        if raw_rule_id is None:
+            continue
+        rule_id = str(raw_rule_id)
         if rule_id:
             batch_rule_ids.add(rule_id)
 
