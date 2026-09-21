@@ -92,8 +92,11 @@ date — do not attempt it. Report it to Prin instead.
 
 A Hindsight memory bank holds decisions, conventions and findings from earlier sessions.
 
-- Before searching the repo, or saying you have no record of a decision, convention,
-  name or past session, call `hindsight_recall` with a short query
+- When a question is about something from an earlier session — a past build, a decision,
+  a convention, a name or a recorded follow-up — make `hindsight_recall` (short query)
+  your first tool call, before grepping the repo or reading `.session-memos/`. Then read
+  the memo or file for detail. Do not skip the recall because a memo probably has the
+  answer. The same applies before saying you have no record of something
 - Use `hindsight_retain` only when Prin asks you to remember something. The one exception
   is `pm`, which stores a short verified digest at the end of each `/build` run (rules in
   `pm`'s own file)
