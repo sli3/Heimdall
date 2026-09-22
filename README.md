@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/ravensight-logo.jpg" alt="Ravensight logo" width="600">
+</p>
+
 # Ravensight — Wazuh Security Log Analyser
 
 A local-first security log analyser that pulls alerts from the Wazuh REST API,
