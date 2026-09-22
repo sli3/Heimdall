@@ -24,6 +24,8 @@ data/mitre_attack.json
 data/asd_framework.json
 data/*
 !data/platform_hints.json
+!data/defaults/
+!data/defaults/*.json
 
 # OS
 .DS_Store
