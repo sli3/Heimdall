@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="docs/ravensight-logo.jpg" alt="Ravensight logo" width="600">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/ravensight-logo-dark.jpg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/ravensight-logo-light-half.jpg">
+    <img src="docs/ravensight-logo-dark.jpg" alt="Ravensight logo" width="600">
+  </picture>
 </p>
 
 # Ravensight — Wazuh Security Log Analyser
