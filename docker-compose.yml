@@ -1,0 +1,13 @@
+services:
+  ravensight:
+    build: .
+    image: ravensight:latest
+    container_name: ravensight
+    env_file:
+      - .env
+    volumes:
+      - ${RAVENSIGHT_HOST_DATA_PATH:-./data}:/app/data
+      - ${RAVENSIGHT_HOST_REPORTS_PATH:-./reports}:/app/reports
+    # Default run is a normal analysis pass (see Dockerfile CMD).
+    # Override at the command line for a one-off, e.g.:
+    #   docker compose run --rm ravensight sync

@@ -5,18 +5,18 @@ set -eu
 # Required variables (no sane default — checked below) are NOT set here:
 # WAZUH_HOST, WAZUH_API_USER, WAZUH_API_PASSWORD, WAZUH_INDEXER_HOST,
 # WAZUH_INDEXER_PASSWORD, LLM_BASE_URL, LLM_MODEL, EMBEDDINGS_ENDPOINT
-: "${WAZUH_PORT:=55000}"
-: "${WAZUH_INDEXER_PORT:=9200}"
-: "${WAZUH_INDEXER_USER:=admin}"
-: "${LLM_API_KEY:=local}"
-: "${LLM_TEMPERATURE:=0.3}"
-: "${LLM_MAX_TOKENS:=1024}"
-: "${EMBEDDINGS_MODEL:=Qwen3-Embedding-0.6B}"
-: "${EMBEDDINGS_TOP_K:=5}"
-: "${TRENDING_WINDOW_DAYS:=30}"
-: "${TRENDING_OUTPUT_STANDALONE:=false}"
-: "${RAVENSIGHT_DATA_DIR:=/app/data}"
-: "${RAVENSIGHT_REPORTS_DIR:=/app/reports}"
+: "${WAZUH_PORT:=55000}"; export WAZUH_PORT
+: "${WAZUH_INDEXER_PORT:=9200}"; export WAZUH_INDEXER_PORT
+: "${WAZUH_INDEXER_USER:=admin}"; export WAZUH_INDEXER_USER
+: "${LLM_API_KEY:=local}"; export LLM_API_KEY
+: "${LLM_TEMPERATURE:=0.3}"; export LLM_TEMPERATURE
+: "${LLM_MAX_TOKENS:=1024}"; export LLM_MAX_TOKENS
+: "${EMBEDDINGS_MODEL:=Qwen3-Embedding-0.6B}"; export EMBEDDINGS_MODEL
+: "${EMBEDDINGS_TOP_K:=5}"; export EMBEDDINGS_TOP_K
+: "${TRENDING_WINDOW_DAYS:=30}"; export TRENDING_WINDOW_DAYS
+: "${TRENDING_OUTPUT_STANDALONE:=false}"; export TRENDING_OUTPUT_STANDALONE
+: "${RAVENSIGHT_DATA_DIR:=/app/data}"; export RAVENSIGHT_DATA_DIR
+: "${RAVENSIGHT_REPORTS_DIR:=/app/reports}"; export RAVENSIGHT_REPORTS_DIR
 
 # --- Required variables: fail fast with a clear message rather than let
 # tomllib.load() or main.py fail later with a confusing placeholder value ---
