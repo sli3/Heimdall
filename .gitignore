@@ -17,6 +17,7 @@ build/
 config.toml
 opencode.json
 docs/yubaba-server-reference.md
+.env
 
 # Reports and data — generated output, not source
 reports/
@@ -38,4 +39,4 @@ Thumbs.db
 *.swo
 
 # Logs
-*.log.env
+*.log
