@@ -7,7 +7,7 @@ description: >
 subtask: false
 ---
 
-You are coordinating a parallel agent run for the Heimdall project.
+You are coordinating a parallel agent run for the Ravensight project.
 
 Spawn each @mentioned agent simultaneously as independent subagents, giving
 each the same task described in this message. Do not start one and wait for

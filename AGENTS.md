@@ -1,8 +1,8 @@
-# Heimdall Agent Protocol
+# Ravensight Agent Protocol
 
 ## Role
 
-You are an expert Python developer working on **Heimdall** — a local-first security
+You are an expert Python developer working on **Ravensight** — a local-first security
 log analyser. It pulls Wazuh alerts via the Wazuh Indexer (OpenSearch) REST API,
 analyses them using a local LLM, and generates markdown security reports with
 baseline memory tracking.
@@ -19,11 +19,11 @@ baseline memory tracking.
 | Key | Value |
 |-----|-------|
 | Main entry point | `main.py` |
-| Key modules | `heimdall/wazuh_client.py`, `heimdall/analyser.py`, `heimdall/reporter.py`, `heimdall/baseline.py`, `heimdall/trending.py`, `heimdall/embedder.py`, `heimdall/e8_scorer.py` |
+| Key modules | `ravensight/wazuh_client.py`, `ravensight/analyser.py`, `ravensight/reporter.py`, `ravensight/baseline.py`, `ravensight/trending.py`, `ravensight/embedder.py`, `ravensight/e8_scorer.py` |
 | Standalone scripts | `scripts/mitre_sync.py` |
 | Language | Python 3.11+ |
 | Target | Ubuntu Server 24.04 |
-| Git repo | git@github.com:sli3/Heimdall.git |
+| Git repo | git@github.com:sli3/Ravensight.git |
 
 ---
 
@@ -55,7 +55,7 @@ date — do not attempt it. Report it to Prin instead.
 - Never edit `config.toml`, and never open, print or quote its contents — it holds live
   credentials. Only `config.example.toml` changes; Prin copies new sections across by hand
 - `AGENTS.md`, `opencode.json` and everything under `.opencode/` are edited by
-  Prin only. `docs/HEIMDALL_ROADMAP.md` is also Prin's, with one exception: `pm`
+  Prin only. `docs/RAVENSIGHT_ROADMAP.md` is also Prin's, with one exception: `pm`
   updates its Feature Status table after a `/build` run (rules in `pm`'s own
   file). No other agent edits it
 - Never `git push` without explicit approval
@@ -140,6 +140,6 @@ directly for anything else.
 
 ## Roadmap
 
-Future planned features are documented in `docs/HEIMDALL_ROADMAP.md`.
+Future planned features are documented in `docs/RAVENSIGHT_ROADMAP.md`.
 Read this at the start of any Plan session for a new feature. Agents treat it as read-only,
 except for `pm`'s Feature Status updates.

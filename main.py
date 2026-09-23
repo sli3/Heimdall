@@ -1,5 +1,5 @@
 """
-main.py — Heimdall Security Log Analyser entry point.
+main.py — Ravensight Security Log Analyser entry point.
 """
 import argparse
 import logging
@@ -8,14 +8,14 @@ import tomllib
 from pathlib import Path
 
 from tqdm import tqdm
-from heimdall import wazuh_client, analyser, reporter, baseline, trending, e8_scorer, embedder as embedder_module
+from ravensight import wazuh_client, analyser, reporter, baseline, trending, e8_scorer, embedder as embedder_module
 
 logger = logging.getLogger(__name__)
 
 
 def main() -> None:
-    """Main entry point for Heimdall."""
-    parser = argparse.ArgumentParser(description="Heimdall Security Log Analyser")
+    """Main entry point for Ravensight."""
+    parser = argparse.ArgumentParser(description="Ravensight Security Log Analyser")
     parser.add_argument("--config", default="config.toml", help="Path to config file")
     parser.add_argument("--hours", type=int, default=24, help="Lookback window in hours")
     parser.add_argument("--agent", type=str, default=None, help="Wazuh agent ID")

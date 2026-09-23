@@ -1,6 +1,6 @@
 """
 Tests for platform hints loading and platform context block construction
-in heimdall.analyser.
+in ravensight.analyser.
 """
 
 import json
@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from heimdall.analyser import _build_platform_context, _load_platform_hints
+from ravensight.analyser import _build_platform_context, _load_platform_hints
 
 FREEBSD_HINT = (
     "Link count mismatches on /boot/efi are a structural FAT32 artefact on "
@@ -54,7 +54,7 @@ def test_load_platform_hints_missing_file_returns_empty_and_logs_warning(
     tmp_path: Path, caplog: Any
 ) -> None:
     """Missing hints file returns {} and logs a warning."""
-    caplog.set_level(logging.WARNING, logger="heimdall.analyser")
+    caplog.set_level(logging.WARNING, logger="ravensight.analyser")
     missing = str(tmp_path / "does_not_exist.json")
     result = _load_platform_hints(missing)
     assert result == {}
@@ -67,7 +67,7 @@ def test_load_platform_hints_malformed_json_returns_empty(
     tmp_path: Path, caplog: Any
 ) -> None:
     """Malformed JSON returns {} without raising."""
-    caplog.set_level(logging.WARNING, logger="heimdall.analyser")
+    caplog.set_level(logging.WARNING, logger="ravensight.analyser")
     bad_file = tmp_path / "bad.json"
     bad_file.write_text("{ not valid json", encoding="utf-8")
     result = _load_platform_hints(str(bad_file))

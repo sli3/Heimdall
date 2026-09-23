@@ -45,11 +45,11 @@ Pass a structured brief using this format:
 [paste error message and stack trace]
 
 **Entry point:**
-`heimdall/[file.py]` → `[function_name()]`
+`ravensight/[file.py]` → `[function_name()]`
 
 **Files to investigate:**
-- `heimdall/[file1.py]`
-- `heimdall/[file2.py]`
+- `ravensight/[file1.py]`
+- `ravensight/[file2.py]`
 
 **Context:**
 [Any relevant runtime context — config values, data state, recent changes]
@@ -85,7 +85,7 @@ Do not proceed to bug-hunt-loop without an explicit **Yes**.
 Construct the bug-hunt-loop prompt using the RCA findings:
 
 ```
-Run bug-hunt-loop on `heimdall/[file.py]`.
+Run bug-hunt-loop on `ravensight/[file.py]`.
 
 Root cause (from RCA):
 [paste Hypothesis section]

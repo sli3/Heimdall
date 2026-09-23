@@ -11,7 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
-COPY heimdall/ heimdall/
+COPY ravensight/ ravensight/
 COPY scripts/ scripts/
 COPY config.template.toml .
 COPY data/defaults/ data/defaults/

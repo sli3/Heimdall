@@ -1,4 +1,4 @@
-# Heimdall — Feature Roadmap
+# Ravensight — Feature Roadmap
 
 > This document captures planned features to be built after the base project is complete.
 > Hand this back to Claude at the start of a planning session to resume from here.
@@ -10,11 +10,11 @@
 The base project is complete. All modules are working end-to-end:
 
 - `main.py` — entry point and orchestration
-- `heimdall/wazuh_client.py` — Wazuh Indexer (OpenSearch) REST API client
-- `heimdall/analyser.py` — LLM analysis via Qwen3.6-35B on the local inference server
-- `heimdall/reporter.py` — markdown report generation
-- `heimdall/baseline.py` — baseline memory persistence (JSON store)
-- `heimdall/trending.py` — historical trend analysis and anomaly detection
+- `ravensight/wazuh_client.py` — Wazuh Indexer (OpenSearch) REST API client
+- `ravensight/analyser.py` — LLM analysis via Qwen3.6-35B on the local inference server
+- `ravensight/reporter.py` — markdown report generation
+- `ravensight/baseline.py` — baseline memory persistence (JSON store)
+- `ravensight/trending.py` — historical trend analysis and anomaly detection
 - `scripts/mitre_sync.py` — MITRE ATT&CK STIX data sync script
 
 ---
@@ -27,10 +27,10 @@ The base project is complete. All modules are working end-to-end:
 | MITRE ATT&CK Tagging | ✅ Complete | Tactic reference injected into LLM prompt, tags in report |
 | Multi-Model Routing | ~~Superseded~~ | See note below |
 | Embedding Model | ✅ Complete | 89 vectors stored, retrieval confirmed working |
-| Platform-Aware Alert Context | ✅ Complete | `data/platform_hints.json` with FreeBSD rule 510 hint, `_load_platform_hints()` + `_build_platform_context()` in `heimdall/analyser.py`, `[platform]` section in `config.example.toml` (commit `81f9326`) |
-| Progress Bar + LLM Streaming | ✅ Complete | Part A — `tqdm` bars in `wazuh_client.py` / `embedder.py` (commit `da2b066`); Part B — `stream=True` token counter in `heimdall/analyser.py` (commit `b29f77b`); `tqdm>=4.66` in `requirements.txt`, `show_progress` plumbed through `main.py` |
-| ASD Framework Mapping | ✅ Complete | `scripts/asd_sync.py` syncs Essential Eight + ISM (commit `42c816b`); ASD context injected in `heimdall/analyser.py` (commit `c23ce1e`); `_render_asd_section()` in `heimdall/reporter.py` (commit `861becf`); ASD path wired in `main.py`, `[asd]` section in `config.example.toml` (commit `eda966f`) |
-| Essential Eight Compliance Scoring + ISM Alert Mapping | ✅ Complete | `heimdall/e8_scorer.py` (`score_findings()` / `match_ism_controls()`, commit `b1deb3e`); wired into `main.py` and reporter rendering (commit `2e2b4d9`); per-strategy keyword overrides in `data/e8_keyword_overrides.json` (commit `03c0cb3`); `[e8]` section in `config.example.toml` |
+| Platform-Aware Alert Context | ✅ Complete | `data/platform_hints.json` with FreeBSD rule 510 hint, `_load_platform_hints()` + `_build_platform_context()` in `ravensight/analyser.py`, `[platform]` section in `config.example.toml` (commit `81f9326`) |
+| Progress Bar + LLM Streaming | ✅ Complete | Part A — `tqdm` bars in `wazuh_client.py` / `embedder.py` (commit `da2b066`); Part B — `stream=True` token counter in `ravensight/analyser.py` (commit `b29f77b`); `tqdm>=4.66` in `requirements.txt`, `show_progress` plumbed through `main.py` |
+| ASD Framework Mapping | ✅ Complete | `scripts/asd_sync.py` syncs Essential Eight + ISM (commit `42c816b`); ASD context injected in `ravensight/analyser.py` (commit `c23ce1e`); `_render_asd_section()` in `ravensight/reporter.py` (commit `861becf`); ASD path wired in `main.py`, `[asd]` section in `config.example.toml` (commit `eda966f`) |
+| Essential Eight Compliance Scoring + ISM Alert Mapping | ✅ Complete | `ravensight/e8_scorer.py` (`score_findings()` / `match_ism_controls()`, commit `b1deb3e`); wired into `main.py` and reporter rendering (commit `2e2b4d9`); per-strategy keyword overrides in `data/e8_keyword_overrides.json` (commit `03c0cb3`); `[e8]` section in `config.example.toml` |
 
 ---
 
@@ -165,17 +165,17 @@ entirely. Semantic search solves both problems.
 
 **Operational Notes:**
 
-- Embedding server (`start-embed`) must be started before running Heimdall
+- Embedding server (`start-embed`) must be started before running Ravensight
 - Use `--ctx-size 512 --n-gpu-layers 0` on the embedding server — keeps VRAM footprint to ~564 MiB
 - Do not use `--ub` flag — invalid on current llama.cpp build
 - VRAM budget with both servers running: ~8.6GB / 12GB (3.6GB headroom)
 - `[embeddings]` section must be present in live `config.toml` — agent only updates `config.example.toml`
 
 ---
-- `heimdall/embedder.py` — new module: connects to llama.cpp embeddings endpoint, encodes
+- `ravensight/embedder.py` — new module: connects to llama.cpp embeddings endpoint, encodes
   alert clusters, manages ChromaDB collection
-- `heimdall/baseline.py` — extend to write embeddings on update, add `retrieve_similar()`
-- `heimdall/analyser.py` — update `_build_prompt()` to inject retrieved context
+- `ravensight/baseline.py` — extend to write embeddings on update, add `retrieve_similar()`
+- `ravensight/analyser.py` — update `_build_prompt()` to inject retrieved context
 - `config.toml` — add `[embeddings]` section with model ID, endpoint port,
   ChromaDB path, top-N retrieval count
 - `requirements.txt` — add `chromadb`
@@ -253,7 +253,7 @@ Platform context:
 - `data/platform_hints.json` — platform/rule false positive hint table
   (gitignored alongside MITRE and ASD data; regenerate from source or maintain
   manually; starts with the FreeBSD/rule 510 entry)
-- `heimdall/analyser.py` — add `_load_platform_hints()` and
+- `ravensight/analyser.py` — add `_load_platform_hints()` and
   `_build_platform_context()` helpers; update `_build_prompt()` to call them
   and prepend the platform block when hints are present
 - `config.example.toml` — add `[platform]` section with `hints_path` key
@@ -275,7 +275,7 @@ Platform context:
     and `data/asd_framework.json`
   - Out of scope: `analyser.py`, `config.example.toml`, any logic changes
 
-- **Session 2 — heimdall/analyser.py + config.example.toml**
+- **Session 2 — ravensight/analyser.py + config.example.toml**
   - Read `analyser.py` in full before touching anything; identify the exact
     insertion point in `_build_prompt()`
   - Add `_load_platform_hints(hints_path: str) -> dict` — reads
@@ -307,14 +307,14 @@ Platform context:
 - If `agent.os.platform` is absent in an alert (can happen with agentless
   sources), `_build_platform_context()` skips that alert silently
 - Run smoke test after Session 2:
-  `python -c "from heimdall import analyser; print('imports OK')"`
+  `python -c "from ravensight import analyser; print('imports OK')"`
 
 ---
 
 ### 6. Progress Bar + LLM Streaming
 
 **What it does:**
-Two complementary improvements to terminal feedback during a Heimdall run.
+Two complementary improvements to terminal feedback during a Ravensight run.
 Part A adds tqdm progress bars to phases with known counts — alert fetch,
 baseline migration, and embedding calls. Part B replaces the blocking
 `chat.completions.create()` call with a streaming response that displays a
@@ -376,10 +376,10 @@ server.
 - `requirements.txt` — add `tqdm>=4.66`
 - `main.py` — `--no-progress` flag; `show_progress` bool; pass to sub-modules;
   step labels via `tqdm.write()`
-- `heimdall/wazuh_client.py` — spinner + count display in `fetch_alerts()`
-- `heimdall/embedder.py` — determinate bar over migration loop; spinner over
+- `ravensight/wazuh_client.py` — spinner + count display in `fetch_alerts()`
+- `ravensight/embedder.py` — determinate bar over migration loop; spinner over
   `query_similar()`
-- `heimdall/analyser.py` — `stream=True`; chunk accumulation loop; tqdm token
+- `ravensight/analyser.py` — `stream=True`; chunk accumulation loop; tqdm token
   counter; `full_text` passed to `_parse_analysis()` unchanged
 
 ---
@@ -392,12 +392,12 @@ server.
     `show_progress = not args.no_progress and sys.stdout.isatty()`; pass
     `show_progress` to `wazuh_client.Client.__init__()` and
     `embedder.Embedder.__init__()`; use `tqdm.write()` for step labels
-  - `heimdall/wazuh_client.py`: add `show_progress: bool = False` to
+  - `ravensight/wazuh_client.py`: add `show_progress: bool = False` to
     `__init__()`; in `fetch_alerts()`, wrap the `requests.post()` call with
     `tqdm(total=None, desc="Fetching alerts", disable=not self.show_progress)`
     as a context manager; on return, call
     `tqdm.write(f"Fetched {len(alerts)} alerts")` to report the count
-  - `heimdall/embedder.py`: add `show_progress: bool = False` to
+  - `ravensight/embedder.py`: add `show_progress: bool = False` to
     `__init__()`; wrap the baseline migration loop with
     `tqdm(items, desc="Embedding migration", unit=" entry", disable=not self.show_progress)`;
     wrap the `query_similar()` HTTP call with a `tqdm(total=None)` spinner
@@ -405,7 +405,7 @@ server.
     `embedder.py` ChromaDB and vector logic, any analysis logic
 
 - **Session 2 — Part B: LLM streaming (analyser.py only)**
-  - `heimdall/analyser.py`: add `show_progress: bool = False` parameter to
+  - `ravensight/analyser.py`: add `show_progress: bool = False` parameter to
     `analyse()`; replace `client.chat.completions.create(...)` with
     `client.chat.completions.create(..., stream=True)`; consume the stream
     in a loop: `for chunk in stream: content = chunk.choices[0].delta.content or ""; full_text += content; if content: bar.update(1)`;
@@ -428,7 +428,7 @@ server.
   handler writes to stderr (default `logging.basicConfig` behaviour)
 - Expected streaming display: `Analysing... 1247 tok [00:29<?, 43.0 tok/s]`
 - Run smoke test after each session:
-  `python -c "from heimdall import wazuh_client, embedder, analyser; print('imports OK')"`
+  `python -c "from ravensight import wazuh_client, embedder, analyser; print('imports OK')"`
 
 ---
 
@@ -437,7 +437,7 @@ server.
 **What it does:**
 Maps alert findings and recommendations to Australian cyber security controls —
 the Essential Eight (ASD) and a curated subset of the ISM (Australian Government
-Information Security Manual) — so that recommendations in Heimdall reports align
+Information Security Manual) — so that recommendations in Ravensight reports align
 with Australian regulatory language. Example output: "Isolate affected host —
 Essential Eight: Restrict Administrative Privileges (ML2), ISM-1175."
 
@@ -457,7 +457,7 @@ within Australian compliance contexts without manual cross-referencing.
   that manual updates on major revision are acceptable
 - ISM data is fetched from the ACSC-published ISM Excel workbook
   (cyber.gov.au/resources-business-and-government/essential-cyber-security/ism)
-  and filtered to controls relevant to the alert types Heimdall handles:
+  and filtered to controls relevant to the alert types Ravensight handles:
   access control, system monitoring, patch management, incident response,
   network security (approximately 80–120 controls from ~750 total)
 - At analysis time, `analyser.py` reads the local file and injects a compact
@@ -470,7 +470,7 @@ within Australian compliance contexts without manual cross-referencing.
 - No live fetching during report runs — always reads from local JSON file, same
   pattern as MITRE ATT&CK tagging
 - `asd_sync.py` run manually or on ISM update cadence (quarterly) — not
-  triggered automatically by Heimdall
+  triggered automatically by Ravensight
 - Essential Eight is hardcoded in the sync script, not fetched — avoids HTML
   scraping fragility; the ASD publishes no machine-readable Essential Eight
   source; the framework is revised infrequently (major revisions announced publicly)
@@ -488,9 +488,9 @@ within Australian compliance contexts without manual cross-referencing.
   static dataset + fetches and filters ISM Excel workbook; writes
   `data/asd_framework.json`
 - `data/asd_framework.json` — local ASD lookup file (gitignored if large)
-- `heimdall/analyser.py` — update `_build_prompt()` to load and inject compact
+- `ravensight/analyser.py` — update `_build_prompt()` to load and inject compact
   ASD control reference alongside existing MITRE context
-- `heimdall/reporter.py` — add ASD Framework Alignment table to report output,
+- `ravensight/reporter.py` — add ASD Framework Alignment table to report output,
   parallel to existing MITRE ATT&CK Tags table
 - `config.example.toml` — add `[asd]` section with local data path, ISM source
   URL, and ISM category filter list
@@ -513,9 +513,9 @@ within Australian compliance contexts without manual cross-referencing.
       each with `id`, `category`, `description`)
     - Add `openpyxl` to `requirements.txt`
   - Out of scope: `analyser.py`, `reporter.py`, `config.example.toml`, all
-    `heimdall/` modules
+    `ravensight/` modules
 
-- **Session 2 — heimdall/analyser.py**
+- **Session 2 — ravensight/analyser.py**
   - Update `_build_prompt()` to accept `asd_context: str` parameter (compact
     formatted string, built from `data/asd_framework.json` before the call)
   - Add `_build_asd_context()` helper function: reads `data/asd_framework.json`,
@@ -528,7 +528,7 @@ within Australian compliance contexts without manual cross-referencing.
   - Out of scope: `reporter.py`, `main.py`, `config.example.toml`, MITRE prompt
     logic (read only for reference)
 
-- **Session 3 — heimdall/reporter.py**
+- **Session 3 — ravensight/reporter.py**
   - Add `_build_asd_table()` helper: formats the ASD mappings returned in the
     analysis dict as a markdown table with columns: Finding, Essential Eight
     Strategy, Maturity Level, ISM Controls
@@ -558,16 +558,16 @@ within Australian compliance contexts without manual cross-referencing.
 
 **Operational Notes:**
 
-- Run `python scripts/asd_sync.py` before first Heimdall run with ASD mapping enabled
+- Run `python scripts/asd_sync.py` before first Ravensight run with ASD mapping enabled
 - Re-run `asd_sync.py` after each ISM quarterly update (ACSC typically publishes
   in January, April, July, October)
 - Essential Eight does not require re-sync unless ASD publishes a major revision —
   check cyber.gov.au/essential-eight when revisions are announced
-- If `data/asd_framework.json` is absent, Heimdall logs a warning and continues
+- If `data/asd_framework.json` is absent, Ravensight logs a warning and continues
   without ASD mapping — the run is not blocked
 - `openpyxl` is added to `requirements.txt` as a new dependency (ISM Excel parse);
   no other new dependencies introduced
-- Run smoke test after implementation: `python -c "from heimdall import analyser, reporter; print('imports OK')"`
+- Run smoke test after implementation: `python -c "from ravensight import analyser, reporter; print('imports OK')"`
 - ASD data file is gitignored alongside MITRE data — regenerate locally after clone
 
 ---
@@ -585,7 +585,7 @@ of always showing the same 78 controls regardless of scan content.
 
 ---
 
-#### Session 1 — heimdall/e8_scorer.py (new module)
+#### Session 1 — ravensight/e8_scorer.py (new module)
 
 New module with two public functions:
 
@@ -662,7 +662,7 @@ Matching approach (no second LLM call — keyword only):
 - No second LLM call — all matching must be fast and fully offline
 - Keyword matching only in Sessions 1 and 2
 - Embedder upgrade is optional and only if keyword accuracy is poor
-- `e8_scorer.py` has no dependencies on any other Heimdall module
+- `e8_scorer.py` has no dependencies on any other Ravensight module
   except the `asd_data` dict it receives as a parameter
 
 ---

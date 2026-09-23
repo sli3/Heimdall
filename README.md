@@ -41,7 +41,7 @@ markdown security reports with baseline memory tracking and historical trending.
 
 ```
 main.py               # Entry point — CLI and orchestration
-heimdall/
+ravensight/
 ├── wazuh_client.py    # Wazuh Indexer (OpenSearch) REST API client
 ├── analyser.py        # LLM analysis via llama.cpp OpenAI-compatible API
 ├── reporter.py        # Markdown report generation
@@ -75,8 +75,8 @@ scripts/
 ### 1. Clone the repo
 
 ```bash
-git clone git@github.com:sli3/Heimdall.git
-cd Heimdall
+git clone git@github.com:sli3/Ravensight.git
+cd Ravensight
 ```
 
 ### 2. Choose how to run Ravensight
@@ -345,7 +345,7 @@ Findings are tagged against the **MITRE ATT&CK** framework and Australia's
 | Docker packaging | 🔧 In progress | Core container done; `docker-compose.yml` + service profiles planned |
 | Multi-Model Routing | 📋 Planned | Two-pass pipeline — smaller triage model → deep analysis model |
 
-Full design notes for each feature are in [`docs/HEIMDALL_ROADMAP.md`](docs/HEIMDALL_ROADMAP.md).
+Full design notes for each feature are in [`docs/RAVENSIGHT_ROADMAP.md`](docs/RAVENSIGHT_ROADMAP.md).
 
 ---
 
@@ -366,9 +366,9 @@ This project uses the [Huginn](https://github.com/sli3/Huginn) OpenCode workflow
 template — structured sessions, safety gates, and session memos.
 
 ```
-Heimdall/
+Ravensight/
 ├── main.py
-├── heimdall/
+├── ravensight/
 │   ├── wazuh_client.py
 │   ├── analyser.py
 │   ├── reporter.py
@@ -394,7 +394,7 @@ Heimdall/
 ├── Dockerfile
 ├── requirements.txt
 ├── docs/
-│   └── HEIMDALL_ROADMAP.md
+│   └── RAVENSIGHT_ROADMAP.md
 ├── AGENTS.md
 ├── opencode.json
 ├── LICENSE
