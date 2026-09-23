@@ -16,15 +16,15 @@ services:
   # Activate with: docker compose --profile chroma up -d chroma
   # Then point Ravensight at it by setting EMBEDDINGS_CHROMA_HOST=chroma in .env
   # (empty EMBEDDINGS_CHROMA_HOST keeps today's embedded mode unchanged).
-  # Image tag pinned to match chromadb==0.6.3 in requirements.txt — see
+  # Image tag pinned to match chromadb==1.5.9 in requirements.txt — see
   # https://docs.trychroma.com for the REST API changes between versions.
   chroma:
-    image: chromadb/chroma:0.6.3
+    image: chromadb/chroma:1.5.9
     container_name: ravensight-chroma
     profiles: ["chroma"]
     environment:
-      - IS_PERSISTENT=TRUE  # required — without it, data is in-memory only and lost on every restart
+      - IS_PERSISTENT=TRUE  # legacy 0.x flag, harmless no-op in 1.x; persistence is on by default (Rust server, /config.yaml)
     volumes:
-      - ${RAVENSIGHT_HOST_CHROMA_PATH:-./chroma-data}:/chroma/chroma  # image's persist_directory default
+      - ${RAVENSIGHT_HOST_CHROMA_PATH:-./chroma-data}:/data  # 1.5.9 image default persist_directory (was /chroma/chroma in 0.6.x)
     ports:
       - "127.0.0.1:${RAVENSIGHT_CHROMA_PORT:-8000}:8000"
