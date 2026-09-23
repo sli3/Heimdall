@@ -31,6 +31,7 @@ The base project is complete. All modules are working end-to-end:
 | Progress Bar + LLM Streaming | ✅ Complete | Part A — `tqdm` bars in `wazuh_client.py` / `embedder.py` (commit `da2b066`); Part B — `stream=True` token counter in `ravensight/analyser.py` (commit `b29f77b`); `tqdm>=4.66` in `requirements.txt`, `show_progress` plumbed through `main.py` |
 | ASD Framework Mapping | ✅ Complete | `scripts/asd_sync.py` syncs Essential Eight + ISM (commit `42c816b`); ASD context injected in `ravensight/analyser.py` (commit `c23ce1e`); `_render_asd_section()` in `ravensight/reporter.py` (commit `861becf`); ASD path wired in `main.py`, `[asd]` section in `config.example.toml` (commit `eda966f`) |
 | Essential Eight Compliance Scoring + ISM Alert Mapping | ✅ Complete | `ravensight/e8_scorer.py` (`score_findings()` / `match_ism_controls()`, commit `b1deb3e`); wired into `main.py` and reporter rendering (commit `2e2b4d9`); per-strategy keyword overrides in `data/e8_keyword_overrides.json` (commit `03c0cb3`); `[e8]` section in `config.example.toml` |
+| Networked ChromaDB (server mode) | 🟡 Partial | Optional `HttpClient` mode in `ravensight/embedder.py` via `chroma_host` / `chroma_port` in `[embeddings]` (`_connect_chroma()` helper, embedded branch byte-for-byte preserved); commented-out keys added to `config.example.toml`; Chroma-as-service Docker profile not yet built |
 
 ---
 

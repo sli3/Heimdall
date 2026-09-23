@@ -16,6 +16,8 @@ from uuid import uuid4
 from tqdm import tqdm
 
 import chromadb
+from chromadb.errors import ChromaError
+import httpx
 from openai import OpenAI, APIConnectionError, APITimeoutError
 
 logger = logging.getLogger(__name__)
@@ -37,11 +39,7 @@ class Embedder:
         self._chroma_path = Path(config.get("chroma_db_path", "data/chromadb"))
         self._top_k = config.get("top_k", 5)
 
-        # Ensure chroma directory exists
-        self._chroma_path.mkdir(parents=True, exist_ok=True)
-
-        # Connect to ChromaDB with persistent SQLite backend
-        self._client = chromadb.PersistentClient(path=str(self._chroma_path))
+        self._connect_chroma(config)
 
         # Create embedding client for llama.cpp endpoint
         self._embedding_client = OpenAI(
@@ -51,6 +49,25 @@ class Embedder:
 
         # Ensure collection exists
         self._ensure_collection()
+
+    def _connect_chroma(self, config: dict[str, Any]) -> None:
+        """Connect to ChromaDB in embedded mode or networked server mode."""
+        host = config.get("chroma_host")
+        if host:
+            port = config.get("chroma_port", 8000)
+            logger.info(f"Connecting to ChromaDB server at {host}:{port}")
+            try:
+                self._client = chromadb.HttpClient(host=host, port=port)
+            except (ValueError, httpx.HTTPError, ChromaError) as e:
+                raise RuntimeError(
+                    f"Could not connect to ChromaDB server at {host}:{port}. "
+                    "Verify chroma_host/chroma_port in [embeddings] and that the server is reachable."
+                ) from e
+            return
+
+        logger.info(f"Using embedded ChromaDB at {self._chroma_path}")
+        self._chroma_path.mkdir(parents=True, exist_ok=True)
+        self._client = chromadb.PersistentClient(path=str(self._chroma_path))
 
     def _ensure_collection(self) -> None:
         """Create ChromaDB collection if it doesn't exist."""
