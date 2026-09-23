@@ -40,3 +40,5 @@ Thumbs.db
 
 # Logs
 *.log
+chroma-data/
+session.log
