@@ -13,7 +13,11 @@ permission:
     "pytest*": allow
     "python3 -m pytest*": allow
     "python3 -m py_compile *": allow
+    "python3 -c *": allow
+    "python3 main.py --help": allow
+    "python3 main.py -h": allow
     "ruff check *": allow
+    "python3 -m ruff check *": allow
     "ls -t *": allow
     "head *": allow
     "cat *": allow
