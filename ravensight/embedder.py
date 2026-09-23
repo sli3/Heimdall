@@ -72,7 +72,6 @@ class Embedder:
 
     def _ensure_collection(self) -> None:
         """Create ChromaDB collection if it doesn't exist."""
-        metadata_fields = ["timestamp", "rule_group", "severity", "summary"]
         self._collection = self._client.get_or_create_collection(
             name="alerts",
             metadata={"hnsw:space": "cosine"},
@@ -152,11 +151,11 @@ class Embedder:
 
             # Convert ChromaDB response to list of dicts
             retrieved: list[dict[str, Any]] = []
-            num_results = len(results.get("ids", [[]]))
+            num_results = len(results.get("ids", [[]])[0])
             for i in range(num_results):
                 item = {
-                    "id": results["ids"][0][i] if i < len(results["ids"][0]) else str(uuid4()),
-                    "score": results["distances"][0][i] if i < len(results["distances"][0]) else 0.0,
+                    "id": results["ids"][0][i],
+                    "score": results["distances"][0][i],
                 }
 
                 # Extract metadata fields with safe defaults

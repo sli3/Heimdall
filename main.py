@@ -50,6 +50,11 @@ def main() -> None:
     embedder_config = config.get("embeddings") if "embeddings" in config else None
     embedder = embedder_module.Embedder(embedder_config, show_progress=show_progress) if embedder_config else None
 
+    if embedder is None:
+        logging.info("Embeddings disabled: no [embeddings] section — similarity and vector-store features skipped")
+    else:
+        logging.info(f"Embeddings enabled: endpoint {embedder_config.get('endpoint', 'http://localhost:8081/v1/embeddings')}")
+
     for section in ("wazuh", "llm", "reports", "baseline"):
         if section not in config:
             logging.critical(f"Missing required config section: [{section}]")

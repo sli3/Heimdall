@@ -35,6 +35,10 @@ path = "data/mitre_attack.json"
 # MITRE ATT&CK dataset source URL
 sync_source = "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json"
 
+# Comment out or remove this entire section (or leave it empty) to disable
+# embeddings — runs then skip similarity and vector-store features and
+# create no data/chromadb directory.
+
 [embeddings]
 endpoint = "http://localhost:8081/v1"
 model = "Qwen3-Embedding-0.6B"
