@@ -27,4 +27,4 @@ services:
     volumes:
       - ${RAVENSIGHT_HOST_CHROMA_PATH:-./chroma-data}:/chroma/chroma  # image's persist_directory default
     ports:
-      - "${RAVENSIGHT_CHROMA_PORT:-8000}:8000"
+      - "127.0.0.1:${RAVENSIGHT_CHROMA_PORT:-8000}:8000"

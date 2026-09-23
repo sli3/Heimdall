@@ -3,7 +3,7 @@ embedder.py — ChromaDB vector store and Qwen3-Embedding-0.6B embedding client.
 
 Provides semantic memory for alert retrieval by:
 - Connecting to llama.cpp embeddings endpoint (port 8081)
-- Managing ChromaDB collection with SQLite backend
+- Managing ChromaDB collection with SQLite (embedded) or HTTP (networked) backend
 - Migrating existing baseline_state.json entries on first run
 """
 
@@ -31,7 +31,8 @@ class Embedder:
         Initialise embedder client.
 
         Args:
-            config: Embedding config with endpoint, model, chroma_db_path, top_k keys.
+            config: Embedding config with endpoint, model, chroma_db_path, top_k keys, plus
+                optional chroma_host and chroma_port for networked (server) mode.
         """
         self.show_progress = show_progress
         self._endpoint = config.get("endpoint", "http://localhost:8081/v1/embeddings")
