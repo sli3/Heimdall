@@ -11,3 +11,20 @@ services:
     # Default run is a normal analysis pass (see Dockerfile CMD).
     # Override at the command line for a one-off, e.g.:
     #   docker compose run --rm ravensight sync
+
+  # Optional bundled ChromaDB server — only starts under the 'chroma' profile.
+  # Activate with: docker compose --profile chroma up -d chroma
+  # Then point Ravensight at it by setting EMBEDDINGS_CHROMA_HOST=chroma in .env
+  # (empty EMBEDDINGS_CHROMA_HOST keeps today's embedded mode unchanged).
+  # Image tag pinned to match chromadb==0.6.3 in requirements.txt — see
+  # https://docs.trychroma.com for the REST API changes between versions.
+  chroma:
+    image: chromadb/chroma:0.6.3
+    container_name: ravensight-chroma
+    profiles: ["chroma"]
+    environment:
+      - IS_PERSISTENT=TRUE  # required — without it, data is in-memory only and lost on every restart
+    volumes:
+      - ${RAVENSIGHT_HOST_CHROMA_PATH:-./chroma-data}:/chroma/chroma  # image's persist_directory default
+    ports:
+      - "${RAVENSIGHT_CHROMA_PORT:-8000}:8000"
