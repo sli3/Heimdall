@@ -9,9 +9,9 @@ Provides semantic memory for alert retrieval by:
 
 import json
 import logging
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 from tqdm import tqdm
 
@@ -21,6 +21,13 @@ import httpx
 from openai import OpenAI, APIConnectionError, APITimeoutError
 
 logger = logging.getLogger(__name__)
+
+
+def _format_cause(e: Exception) -> str:
+    """Return a short human-readable label for a Chroma connection failure."""
+    if isinstance(e, httpx.ConnectError) and "Name or service not known" in str(e):
+        return "DNS failure"
+    return f"{type(e).__name__}: {e}"
 
 
 class Embedder:
@@ -37,11 +44,11 @@ class Embedder:
         self.show_progress = show_progress
         self._endpoint = config.get("endpoint", "http://localhost:8081/v1/embeddings")
         self._model = config.get("model", "Qwen3-Embedding-0.6B")
-        self._chroma_path = Path(config.get("chroma_db_path", "data/chromadb"))
+        self._chroma_path = Path(config.get("chroma_db_path", "data/chroma/embedded"))
         self._top_k = config.get("top_k", 5)
         self._degraded = False
-
-        self._connect_chroma(config)
+        self._chroma_failure: str | None = None
+        self._collection: Any | None = None
 
         # Create embedding client for llama.cpp endpoint
         self._embedding_client = OpenAI(
@@ -49,8 +56,19 @@ class Embedder:
             api_key="not-needed",  # Not used for local llama.cpp
         )
 
-        # Ensure collection exists
-        self._ensure_collection()
+        # Client construction is NOT lazy: HttpClient/PersistentClient can raise at
+        # construction time, so the whole connect + collection path is guarded here.
+        try:
+            self._connect_chroma(config)
+            self._ensure_collection()
+        except (ValueError, httpx.HTTPError, ChromaError, OSError, KeyError) as e:
+            self._degraded = True
+            self._collection = None
+            self._chroma_failure = _format_cause(e)
+            logger.warning(
+                f"ChromaDB unreachable ({type(e).__name__}: {e}) — "
+                "similarity retrieval and vector-store updates are skipped this run"
+            )
 
     @property
     def degraded(self) -> bool:
@@ -59,17 +77,12 @@ class Embedder:
 
     def _connect_chroma(self, config: dict[str, Any]) -> None:
         """Connect to ChromaDB in embedded mode or networked server mode."""
-        host = config.get("chroma_host")
-        if host:
+        self._chroma_host: str | None = config.get("chroma_host")
+        if self._chroma_host:
             port = config.get("chroma_port", 8000)
-            logger.info(f"Connecting to ChromaDB server at {host}:{port}")
-            try:
-                self._client = chromadb.HttpClient(host=host, port=port)
-            except (ValueError, httpx.HTTPError, ChromaError) as e:
-                raise RuntimeError(
-                    f"Could not connect to ChromaDB server at {host}:{port}. "
-                    "Verify chroma_host/chroma_port in [embeddings] and that the server is reachable."
-                ) from e
+            logger.info(f"Connecting to ChromaDB server at {self._chroma_host}:{port}")
+            # Construction performs a connectivity probe and raises when the server is down
+            self._client = chromadb.HttpClient(host=self._chroma_host, port=port)
             return
 
         logger.info(f"Using embedded ChromaDB at {self._chroma_path}")
@@ -77,11 +90,22 @@ class Embedder:
         self._client = chromadb.PersistentClient(path=str(self._chroma_path))
 
     def _ensure_collection(self) -> None:
-        """Create ChromaDB collection if it doesn't exist."""
+        """Create the ChromaDB collection; the caller guards against Chroma being unreachable."""
         self._collection = self._client.get_or_create_collection(
             name="alerts",
             metadata={"hnsw:space": "cosine"},
         )
+        if self._chroma_host:
+            self._check_server_version()
+
+    def _check_server_version(self) -> None:
+        """Log a warning when the ChromaDB server major.minor version differs from the client's."""
+        server_version = str(self._client.get_version())
+        client_version = chromadb.__version__
+        if server_version.split(".")[:2] != client_version.split(".")[:2]:
+            logger.warning(
+                f"ChromaDB version mismatch: client {client_version}, server {server_version}"
+            )
 
     def encode(self, text: str) -> list[float]:
         """
@@ -112,6 +136,10 @@ class Embedder:
             text: Text to embed (alert cluster summary).
             metadata: Dict with timestamp, rule_group, severity, summary keys.
         """
+        if self.degraded:
+            logger.warning("Embedder degraded — vector-store add skipped")
+            return
+
         embedding = self.encode(text)
 
         # Convert numpy arrays to lists if needed
@@ -120,8 +148,10 @@ class Embedder:
         else:
             embedding_list = embedding.tolist()
 
-        self._collection.add(
-            ids=[str(uuid4())],
+        # Deterministic id: identical text overwrites itself instead of duplicating
+        content_hash_id = "alert-" + sha256(text.encode("utf-8")).hexdigest()[:32]
+        self._collection.upsert(
+            ids=[content_hash_id],
             embeddings=[embedding_list],
             documents=[text],
             metadatas=[metadata],
@@ -193,6 +223,13 @@ class Embedder:
         """
         count = 0
 
+        # Drift policy: clear last run's baseline vectors before re-inserting
+        if not self.degraded and self._collection is not None:
+            try:
+                self._collection.delete(where={"rule_group": "baseline_finding"})
+            except (ChromaError, httpx.HTTPError, ValueError) as e:
+                logger.warning(f"Failed to clear baseline findings from vector store: {e}")
+
         # Migrate findings
         for finding in tqdm(
             baseline_data.get("findings", []),
@@ -213,6 +250,12 @@ class Embedder:
             except (APIConnectionError, APITimeoutError, ValueError) as e:
                 logger.warning(f"Failed to migrate finding: {e}")
                 break
+
+        if not self.degraded and self._collection is not None:
+            try:
+                self._collection.delete(where={"rule_group": "baseline_recommendation"})
+            except (ChromaError, httpx.HTTPError, ValueError) as e:
+                logger.warning(f"Failed to clear baseline recommendations from vector store: {e}")
 
         # Migrate recommendations
         for rec in baseline_data.get("recommendations", []):

@@ -76,7 +76,9 @@ class Manager:
         if self._embedder is not None and rule_counts:
             for rule_desc, count in rule_counts.items():
                 if self._embedder.degraded:
-                    logger.warning("Embedding server unreachable — vector-store update skipped for this run")
+                    cause = getattr(self._embedder, "_chroma_failure", None) or "embedding server unreachable"
+                    formatted = cause[:1].upper() + cause[1:]
+                    logger.warning(f"{formatted} — vector-store update skipped for this run")
                     break
                 text = f"{rule_desc}: {count} alerts"
                 metadata = {

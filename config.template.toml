@@ -38,7 +38,7 @@ sync_source = "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/m
 [embeddings]
 endpoint = "${EMBEDDINGS_ENDPOINT}"
 model = "${EMBEDDINGS_MODEL}"
-chroma_db_path = "${RAVENSIGHT_DATA_DIR}/chromadb"
+chroma_db_path = "${RAVENSIGHT_DATA_DIR}/chroma/embedded"
 # Optional: networked/server mode (chroma_host non-empty → chromadb.HttpClient).
 # Empty chroma_host keeps today's embedded mode unchanged.
 chroma_host = "${EMBEDDINGS_CHROMA_HOST}"

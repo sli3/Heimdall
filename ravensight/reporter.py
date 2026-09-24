@@ -167,8 +167,17 @@ class Reporter:
             lines.append("*No findings*")
 
         # Similar past incidents — context for findings
+        unavailable_note = data.get("similar_incidents_unavailable_note")
         similar = data.get("similar_incidents", "").strip()
-        if similar:
+        if unavailable_note:
+            lines.extend([
+                "",
+                "## Similar Past Incidents",
+                "",
+                f"> **Note:** {unavailable_note}",
+                "",
+            ])
+        elif similar:
             lines.extend([
                 "",
                 "## Similar Past Incidents",

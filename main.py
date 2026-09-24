@@ -13,6 +13,14 @@ from ravensight import wazuh_client, analyser, reporter, baseline, trending, e8_
 logger = logging.getLogger(__name__)
 
 
+def _similar_incidents_note(embedder: embedder_module.Embedder | None) -> str | None:
+    """Return the report availability note when the embedder is degraded, else None."""
+    if embedder is None or not embedder.degraded:
+        return None
+    cause = getattr(embedder, "_chroma_failure", None) or "embedding server unreachable"
+    return f"Similar Past Incidents: unavailable — {cause}"
+
+
 def main() -> None:
     """Main entry point for Ravensight."""
     parser = argparse.ArgumentParser(description="Ravensight Security Log Analyser")
@@ -77,7 +85,9 @@ def main() -> None:
             trends_output = trend_mgr.generate(baseline_mgr.load())
         
         rep = reporter.Reporter(config["reports"])
-        rep.generate(baseline_mgr.load(), trends=trends_output)
+        note = _similar_incidents_note(embedder)
+        report_data = {**baseline_mgr.load(), "similar_incidents_unavailable_note": note}
+        rep.generate(report_data, trends=trends_output)
         return
 
     alerts = wazuh.fetch_alerts(hours=args.hours, agent=args.agent, level=args.level)
@@ -97,6 +107,7 @@ def main() -> None:
     overrides_path = config.get("e8", {}).get("overrides_path") if "e8" in config else None
     e8_scores = e8_scorer.score_findings(analysis.get("findings", []), asd_data, overrides_path=overrides_path) if asd_data else {}
     matched_controls = e8_scorer.match_ism_controls(analysis.get("findings", []), asd_data, overrides_path=overrides_path) if asd_data else []
+    analysis["similar_incidents_unavailable_note"] = _similar_incidents_note(embedder)
     rep = reporter.Reporter(config["reports"])
     rep.generate(analysis, trends=trends_output, asd_data=asd_data, e8_scores=e8_scores, matched_controls=matched_controls)
 

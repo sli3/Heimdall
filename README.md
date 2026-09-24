@@ -137,7 +137,7 @@ Ravensight uses a separate embedding model server for semantic retrieval:
 |-----|-------------|---------|
 | `embeddings.endpoint` | URL of the embedding model server | `http://localhost:8081/v1` |
 | `embeddings.model` | Model ID served by the embedding server | `Qwen3-Embedding-0.6B` |
-| `embeddings.chroma_db_path` | Path to ChromaDB vector store | `data/chromadb` |
+| `embeddings.chroma_db_path` | Path to ChromaDB vector store | `data/chroma/embedded` |
 | `embeddings.top_k` | Number of similar incidents to retrieve | `5` |
 
 > **Note:** The Wazuh Indexer must be accessible on port 9200 from the machine
@@ -386,7 +386,7 @@ Ravensight/
 │   ├── mitre_attack.json     # Gitignored — regenerable via mitre_sync.py
 │   ├── asd_framework.json    # Gitignored — regenerable via asd_sync.py
 │   ├── baseline_state.json   # Gitignored
-│   └── chromadb/             # Gitignored — vector store
+│   └── chroma/embedded/      # Gitignored — vector store
 ├── reports/                  # Gitignored — generated output
 ├── config.example.toml
 ├── config.template.toml      # Docker — substituted at container start
