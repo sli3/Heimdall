@@ -9,7 +9,7 @@
 # Ravensight — Wazuh Security Log Analyser
 
 A local-first security log analyser that pulls alerts from the Wazuh REST API,
-analyses them using a local LLM (Qwen3 via llama.cpp), and generates structured
+analyses them using a local LLM via llama.cpp, and generates structured
 markdown security reports with baseline memory tracking and historical trending.
 
 > Named for Huginn and Muninn, Odin's ravens — sent out each day to watch the
@@ -21,7 +21,7 @@ markdown security reports with baseline memory tracking and historical trending.
 
 - Connects to the **Wazuh Indexer (OpenSearch)** to pull security alerts by time range,
   agent, or severity level
-- Analyses alert patterns using a **local Qwen3 model** — no data leaves
+- Analyses alert patterns using a **local LLM via llama.cpp** — no data leaves
   your network
 - Generates **markdown security reports** summarising threats, anomalies, and
   recommended actions
@@ -47,7 +47,8 @@ ravensight/
 ├── reporter.py        # Markdown report generation
 ├── baseline.py        # Baseline memory persistence (JSON store)
 ├── trending.py        # Historical trend analysis and anomaly detection
-└── embedder.py        # ChromaDB vector store and embedding client
+├── embedder.py        # ChromaDB vector store and embedding client
+└── e8_scorer.py       # Essential Eight compliance scoring + ISM control matching
 scripts/
 ├── mitre_sync.py      # MITRE ATT&CK dataset sync
 └── asd_sync.py        # ASD Essential Eight / ISM dataset sync
@@ -55,18 +56,50 @@ scripts/
 
 ---
 
-## Requirements
+## Prerequisites
 
-| Dependency | Purpose |
-|------------|---------|
-| Python 3.11+ | Runtime (tomllib requires 3.11+) |
-| `requests` | Wazuh Indexer REST API calls |
-| `openai` | llama.cpp OpenAI-compatible client |
-| `chromadb` | Vector store for semantic alert retrieval |
-| `tqdm` | Progress bars for embedding and sync operations |
-| Wazuh 4.x | Alert source (self-hosted) |
-| llama.cpp server (port 8080) | Local LLM inference (Qwen3) |
-| llama.cpp server (port 8081) | Embedding model inference (Qwen3-Embedding-0.6B) |
+Read this first — first-time users tend to hit missing-dependency gaps here,
+not in the setup steps below.
+
+### Hard requirements (the tool cannot run without these)
+
+- **Python 3.11, 3.12, or 3.13** — `chromadb==1.5.9` (pinned in
+  `requirements.txt`) does not yet support Python 3.14+. The Docker image
+  pins to Python 3.12.
+- **A reachable Wazuh deployment (4.x or later):**
+  - Wazuh Manager API on TCP/55000 (auth endpoint)
+  - Wazuh Indexer (OpenSearch) REST API on TCP/9200 — the actual alert store
+  - If the Indexer binds to localhost only, set `network.host: 0.0.0.0` in
+    `/etc/wazuh-indexer/opensearch.yml` and restart the indexer service
+- **A reachable OpenAI-compatible LLM inference endpoint** — llama.cpp (or
+  any `/v1/chat/completions`-compatible server) is fine; the `api_key` field
+  is not validated.
+
+### Conditional requirements
+
+- **Docker + Docker Compose** — only needed when running Ravensight as a
+  container (see [Docker](#docker)). Skip entirely if you run
+  `python3 main.py` on the host.
+- **Docker Compose with profile support (V2)** — only needed if you want the
+  bundled ChromaDB server, which lives behind the `chroma` profile (see
+  [Docker](#docker)). Plain `docker compose up`/`down` will not start it.
+
+### Optional (the tool runs correctly without these)
+
+- **Embedding model server** plus a populated `[embeddings]` section in
+  `config.toml` enables semantic "Similar Past Incidents" retrieval via
+  ChromaDB. Without it, Ravensight only constructs an embedder when the
+  `[embeddings]` section is present in the config — the rest of the
+  pipeline runs unchanged.
+- In Docker mode, `EMBEDDINGS_ENDPOINT` is currently a required env var in
+  `docker-entrypoint.sh`, so set it (to any reachable URL) when running as
+  a container even if you do not intend to use embeddings.
+
+### Python packages
+
+Installed automatically by `uv pip install -r requirements.txt` (or
+`pip install -r requirements.txt`): `requests`, `openai`,
+`chromadb==1.5.9`, `tqdm`, `httpx`. See `requirements.txt` for exact pins.
 
 ---
 
@@ -81,9 +114,10 @@ cd Ravensight
 
 ### 2. Choose how to run Ravensight
 
-- **[Docker](#docker)** — no local Python setup needed; skip straight to that
-  section
 - **Manual / virtual environment** — continue with the steps below
+- **[Docker](#docker)** — single container by default, or with Docker Compose
+  and the optional bundled ChromaDB server; the same section also covers a
+  hybrid host-plus-Docker-Chroma setup
 
 ---
 
@@ -124,7 +158,7 @@ cp config.example.toml config.toml
 | `wazuh.indexer_user` | Indexer username (default: admin) |
 | `wazuh.indexer_password` | Indexer password |
 | `llm.base_url` | llama.cpp server URL (e.g. `http://yubaba:8080/v1`) |
-| `llm.model` | Model ID served by llama.cpp (e.g. `Qwen3`) |
+| `llm.model` | Model ID served by llama.cpp — whatever your server exposes (e.g. `Ornith-1.5-9B`) |
 | `llm.api_key` | Any string — llama.cpp does not validate |
 | `reports.output_dir` | Where to write markdown reports |
 | `baseline.path` | Path to the baseline JSON file |
@@ -135,9 +169,11 @@ Ravensight uses a separate embedding model server for semantic retrieval:
 
 | Key | Description | Example |
 |-----|-------------|---------|
-| `embeddings.endpoint` | URL of the embedding model server | `http://localhost:8081/v1` |
+| `embeddings.endpoint` | URL of the embedding model server | `http://yubaba:8081/v1` |
 | `embeddings.model` | Model ID served by the embedding server | `Qwen3-Embedding-0.6B` |
-| `embeddings.chroma_db_path` | Path to ChromaDB vector store | `data/chroma/embedded` |
+| `embeddings.chroma_db_path` | Path to ChromaDB vector store (embedded mode only — ignored if `chroma_host` is set) | `data/chroma/embedded` |
+| `embeddings.chroma_host` | ChromaDB server hostname — set this to switch from embedded mode to a networked Chroma server. See [Bundled ChromaDB server](#bundled-chromadb-server-docker-compose---profile-chroma) | `localhost` |
+| `embeddings.chroma_port` | ChromaDB server port (only used if `chroma_host` is set; default `8000`) | `8000` |
 | `embeddings.top_k` | Number of similar incidents to retrieve | `5` |
 
 > **Note:** The Wazuh Indexer must be accessible on port 9200 from the machine
@@ -148,10 +184,8 @@ Ravensight uses a separate embedding model server for semantic retrieval:
 #### 3. Run
 
 ```bash
-python main.py --hours 24
+python3 main.py --hours 24
 ```
-
----
 
 ---
 
@@ -169,9 +203,8 @@ docker build -t ravensight .
 ### 2. Configure
 
 Docker reads configuration from environment variables rather than a `config.toml`
-file you edit directly. Create a `.env` file listing the variables below with
-your real values (an `.env.example` template is planned — see the note at the
-end of this section).
+file you edit directly. Copy `.env.example` to `.env` and fill in the values
+below — defaults are documented in `.env.example`.
 
 The container's entrypoint script substitutes these variables into
 `config.template.toml` and writes a real `config.toml` inside the container at
@@ -188,7 +221,7 @@ start-up — you never need to hand-edit a config file when running in Docker.
 | `WAZUH_INDEXER_USER` | | Indexer username (default: `admin`) |
 | `WAZUH_INDEXER_PASSWORD` | ✅ | Indexer password |
 | `LLM_BASE_URL` | ✅ | llama.cpp server URL (e.g. `http://yubaba:8080/v1`) |
-| `LLM_MODEL` | ✅ | Model ID served by llama.cpp |
+| `LLM_MODEL` | ✅ | Model ID served by llama.cpp — whatever your server exposes (e.g. `Ornith-1.5-9B`) |
 | `LLM_API_KEY` | | Any string — llama.cpp does not validate (default: `local`) |
 | `LLM_TEMPERATURE` | | (default: `0.3`) |
 | `LLM_MAX_TOKENS` | | (default: `1024`) |
@@ -247,8 +280,59 @@ docker run --env-file .env -v ./data:/app/data -v ./reports:/app/reports ravensi
   python3 main.py --config /app/config.toml --hours 1 --level 12
 ```
 
-> **Note:** `docker-compose.yml` support, with configurable host-side bind mount
-> paths, is planned as a follow-up — see the project roadmap.
+### Bundled ChromaDB server (`docker compose --profile chroma`)
+
+The `chroma` service in `docker-compose.yml` is opt-in via a Compose
+profile — it is **not** started by a plain `docker compose up`. Every
+command that needs to manage the bundled Chroma container must include
+`--profile chroma` explicitly, or the container is silently never created
+(no warning):
+
+```bash
+# Start Ravensight and the bundled Chroma server together
+docker compose --profile chroma up -d
+
+# Inspect / follow logs for just the chroma container
+docker compose --profile chroma ps
+docker compose --profile chroma logs -f chroma
+
+# Stop and remove everything in the profile
+docker compose --profile chroma down
+```
+
+To point Ravensight at the bundled server, set in `.env`:
+
+```
+EMBEDDINGS_CHROMA_HOST=chroma
+```
+
+Leave `EMBEDDINGS_CHROMA_HOST` empty (the default) to keep the
+single-container embedded mode — the bundled server is a network-mode
+switch, not a default.
+
+### Hybrid: host `python3 main.py` plus Docker-hosted Chroma
+
+You can run Ravensight on the host (`python3 main.py`) while ChromaDB lives
+in the bundled Compose container — useful when you want to keep your host's
+Python environment but isolate ChromaDB behind a managed server.
+
+```bash
+# Start only the chroma container (publishes port 8000 on host loopback)
+docker compose --profile chroma up -d chroma
+```
+
+Then, in `config.toml`'s `[embeddings]` section, add:
+
+```toml
+chroma_host = "localhost"
+chroma_port = 8000
+```
+
+`chroma_host = "localhost"` is the explicit switch to networked/server mode
+— `chroma_db_path` is then ignored. The `chroma` hostname that Compose's
+internal DNS provides only resolves from inside the `ravensight` Compose
+network; for a host process reaching into the published port, use
+`localhost`.
 
 ---
 
@@ -336,16 +420,8 @@ Findings are tagged against the **MITRE ATT&CK** framework and Australia's
 
 ## Roadmap
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| MITRE ATT&CK Tagging | ✅ Done | `mitre_sync.py` — fully offline after initial sync |
-| ASD Essential Eight / ISM Mapping | ✅ Done | `asd_sync.py` — OSCAL JSON source |
-| Semantic Similar-Incident Retrieval | ✅ Done | ChromaDB + Qwen3-Embedding-0.6B |
-| Historical Trending | 🔧 In progress | `trending.py` written — baseline schema extension and wiring pending |
-| Docker packaging | 🔧 In progress | Core container done; `docker-compose.yml` + service profiles planned |
-| Multi-Model Routing | 📋 Planned | Two-pass pipeline — smaller triage model → deep analysis model |
-
-Full design notes for each feature are in [`docs/RAVENSIGHT_ROADMAP.md`](docs/RAVENSIGHT_ROADMAP.md).
+Feature status and full design notes are tracked in one place:
+[`docs/RAVENSIGHT_ROADMAP.md`](docs/RAVENSIGHT_ROADMAP.md).
 
 ---
 
@@ -374,7 +450,8 @@ Ravensight/
 │   ├── reporter.py
 │   ├── baseline.py
 │   ├── trending.py
-│   └── embedder.py
+│   ├── embedder.py
+│   └── e8_scorer.py
 ├── scripts/
 │   ├── mitre_sync.py
 │   └── asd_sync.py
