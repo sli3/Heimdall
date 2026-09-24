@@ -8,6 +8,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any
 
+from openai import APIConnectionError, APITimeoutError
+
 logger = logging.getLogger(__name__)
 
 
@@ -73,6 +75,9 @@ class Manager:
         # Add embeddings from rule_counts when embedder is present
         if self._embedder is not None and rule_counts:
             for rule_desc, count in rule_counts.items():
+                if self._embedder.degraded:
+                    logger.warning("Embedding server unreachable — vector-store update skipped for this run")
+                    break
                 text = f"{rule_desc}: {count} alerts"
                 metadata = {
                     "timestamp": datetime.now().isoformat(),
@@ -80,7 +85,10 @@ class Manager:
                     "severity": "unknown",
                     "summary": text,
                 }
-                self._embedder.add_embedding(text, metadata)
+                try:
+                    self._embedder.add_embedding(text, metadata)
+                except (APIConnectionError, APITimeoutError, ValueError) as e:
+                    logger.warning(f"Embedding server unreachable ({e}) — vector-store update skipped for this run")
 
         if rule_counts:
             snapshot = {

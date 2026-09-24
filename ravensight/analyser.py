@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from openai import OpenAI
-from openai import APIConnectionError, APIStatusError
+from openai import APIConnectionError, APIStatusError, APITimeoutError
 from tqdm import tqdm
 
 
@@ -266,9 +266,13 @@ def analyse(
     )
 
     similar_incidents = ""
-    if embedder is not None:
+    if embedder is not None and not embedder.degraded:
         query_text = _summarise_alerts(alerts)
-        similar = embedder.retrieve_similar(query_text)
+        try:
+            similar = embedder.retrieve_similar(query_text)
+        except (APIConnectionError, APITimeoutError, ValueError) as e:
+            logger.warning(f"Embedding server unreachable ({e}) — similar-incident retrieval skipped for this run")
+            similar = None
         if similar:
             formatted = []
             for item in similar:

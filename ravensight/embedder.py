@@ -4,7 +4,7 @@ embedder.py — ChromaDB vector store and Qwen3-Embedding-0.6B embedding client.
 Provides semantic memory for alert retrieval by:
 - Connecting to llama.cpp embeddings endpoint (port 8081)
 - Managing ChromaDB collection with SQLite (embedded) or HTTP (networked) backend
-- Migrating existing baseline_state.json entries on first run
+- Migrating existing baseline_state.json entries on every run
 """
 
 import json
@@ -39,6 +39,7 @@ class Embedder:
         self._model = config.get("model", "Qwen3-Embedding-0.6B")
         self._chroma_path = Path(config.get("chroma_db_path", "data/chromadb"))
         self._top_k = config.get("top_k", 5)
+        self._degraded = False
 
         self._connect_chroma(config)
 
@@ -50,6 +51,11 @@ class Embedder:
 
         # Ensure collection exists
         self._ensure_collection()
+
+    @property
+    def degraded(self) -> bool:
+        """Whether the embedding server has failed and should be treated as unavailable."""
+        return self._degraded
 
     def _connect_chroma(self, config: dict[str, Any]) -> None:
         """Connect to ChromaDB in embedded mode or networked server mode."""
@@ -94,6 +100,7 @@ class Embedder:
             )
             return response.model_dump()["data"][0]["embedding"]
         except (APIConnectionError, APITimeoutError, ValueError) as e:
+            self._degraded = True
             logger.error(f"Failed to encode text: {e}")
             raise
 
@@ -203,11 +210,15 @@ class Embedder:
             try:
                 self.add_embedding(str(finding), metadata)
                 count += 1
-            except Exception as e:
+            except (APIConnectionError, APITimeoutError, ValueError) as e:
                 logger.warning(f"Failed to migrate finding: {e}")
+                break
 
         # Migrate recommendations
         for rec in baseline_data.get("recommendations", []):
+            if self.degraded:
+                break
+
             metadata = {
                 "timestamp": baseline_data.get("updated_at", ""),
                 "rule_group": "baseline_recommendation",
@@ -218,8 +229,9 @@ class Embedder:
             try:
                 self.add_embedding(str(rec), metadata)
                 count += 1
-            except Exception as e:
+            except (APIConnectionError, APITimeoutError, ValueError) as e:
                 logger.warning(f"Failed to migrate recommendation: {e}")
+                break
 
         logger.info(f"Migrated {count} entries from baseline to vector store")
         return count

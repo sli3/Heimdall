@@ -64,7 +64,7 @@ def main() -> None:
     baseline_mgr = baseline.Manager(config["baseline"], embedder=embedder)
     wazuh = wazuh_client.Client(config["wazuh"], show_progress=show_progress)
 
-    # NEW: Migrate baseline embeddings on first run (before any conditional branches)
+    # Migrate baseline embeddings (runs on every invocation; no migration marker exists)
     if embedder is not None:
         migrated = embedder.migrate_baseline(baseline_mgr.load())
         if migrated > 0:
