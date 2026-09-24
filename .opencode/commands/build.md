@@ -3,6 +3,7 @@ description: >
   Full automated build cycle for Ravensight. Runs plan → code → fix loop →
   code review → PM audit → report, with no user intervention. The task
   description is pre-planned and pre-approved. Usage: /build "<task>"
+agent: pm
 subtask: false
 ---
 
@@ -53,6 +54,9 @@ Stop immediately and report to Prin if any occur:
 - A PM-audit re-entry (Step 5) fails to resolve on its single allowed retry
 - A roadmap edit is denied, or the build would need to change anything in
   `docs/RAVENSIGHT_ROADMAP.md` other than the Feature Status table
+- A required subagent cannot be invoked (wrong model, missing provider auth, or
+  any other failure). Never substitute a different agent, such as the built-in
+  `general` agent; report exactly which agent failed and why
 
 Do not work around a hard stop. Surface it clearly.
 
@@ -69,13 +73,16 @@ your context-gathering shows nothing needs to change, that finding is a plan
 too — send it to `@plan-reviewer` like any other.
 
 Before calling `@plan-reviewer`, establish prior session context:
-1. Find and read the most recent session memo, if one exists:
+1. Call `hindsight_recall` once, following the MEMORY RECALL section of your
+   own agent definition.
+2. Find and read the most recent session memo, if one exists:
    `ls -t .session-memos/*.md 2>/dev/null | head -1`
-2. Read `AGENTS.md` and the relevant section of `docs/RAVENSIGHT_ROADMAP.md` for
+3. Read `AGENTS.md` and the relevant section of `docs/RAVENSIGHT_ROADMAP.md` for
    this task's feature.
-3. Note: last recorded status, any open deferred items, open bugs.
+4. Note: last recorded status, any open deferred items, open bugs.
 
 Carry this "Prior session context" into your delegation to `@plan-reviewer`,
+with any relevant recalled lines under `Recalled context (unverified)`,
 along with your proposed approach and an explicit **`Scope confirmed: <file
 list>`** line naming every file this build will touch — `@plan-reviewer`
 requires this line to exist before it will review.
@@ -94,7 +101,8 @@ and go to Step 5. This applies only after `@plan-reviewer` has run. Any change
 to a source, test or config file goes through `@code-writer`.
 
 Otherwise, delegate implementation to `@code-writer`. Hand it: the approved plan, the
-prior session context, and the same explicit file scope from Step 1.
+prior session context (including any `Recalled context (unverified)` relevant to
+the implementation), and the same explicit file scope from Step 1.
 Instruct it to follow `AGENTS.md`'s Python style rules and write the
 implementation and its tests together.
 

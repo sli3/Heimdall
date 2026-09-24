@@ -25,13 +25,19 @@ permission:
     "git --no-pager diff*": allow
     "git --no-pager log*": allow
     "git add*": allow
-    "git commit*": allow
-    "git push*": allow
+    "git commit*": ask
+    "git push*": ask
     "mkdir -p .session-memos*": allow
     "date +*": allow
+    "*config.toml*": deny
   external_directory: deny
   doom_loop: deny
-  read: allow
+  read:
+    "*": allow
+    "config.toml": deny
+    "*.env": deny
+    "*.env.*": deny
+    "*.env.example": allow
   task:
     "*": allow
   local-files_write_file: deny
@@ -63,10 +69,28 @@ You never write code, never edit source or config files, and never bypass
 `@plan-reviewer`'s scope gate by handing `@code-writer` a task it hasn't
 approved.
 
+## MEMORY RECALL (start of a `/build` run)
+
+The Hindsight plugin's automatic recall is broken (see `AGENTS.md`), so nothing
+from earlier sessions reaches you or your subagents unless you fetch it.
+
+1. Before delegating anything, call `hindsight_recall` once with a short query
+   built from the task: the feature name and the main module or files involved.
+2. When you delegate, include the recalled lines relevant to that subagent's
+   job in its task prompt, under a heading `Recalled context (unverified)`.
+   Subagents run with fresh context; this is the only way they see it. Pass
+   nothing if nothing relevant came back.
+3. Recalled memories are leads, not evidence. They never count as verification
+   for ROADMAP STATUS UPDATES or the MEMORY DIGEST; those rules still require
+   facts confirmed in this run.
+4. If the run is compacted part-way, recall again before the next delegation.
+5. If the tool is unavailable or returns nothing, say so in one line in the
+   report and carry on. This is not a hard stop.
+
 ## SESSION MEMO (end of a `/build` run only)
 
 After Step 6's report, write the session memo yourself — do not just remind
-Prin to run it. This is the one file you're permitted to write.
+Prin to run it. This is one of your two permitted write targets.
 
 1. `mkdir -p .session-memos`
 2. `date +"%Y-%m-%d_%H-%M"` for the timestamp, then write

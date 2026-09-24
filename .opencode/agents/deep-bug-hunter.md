@@ -12,9 +12,15 @@ permission:
     "python3 -m py_compile *": allow
     "python3 -c *": allow
     "ruff check *": allow
+    "*config.toml*": deny
   external_directory: deny
   doom_loop: deny
-  read: allow
+  read:
+    "*": allow
+    "config.toml": deny
+    "*.env": deny
+    "*.env.*": deny
+    "*.env.example": allow
   glob: allow
   grep: allow
   list: allow
@@ -24,6 +30,7 @@ permission:
   local-files_edit_file: deny
   local-files_create_directory: deny
   local-files_move_file: deny
+  hindsight_retain: deny
 ---
 
 You are the read-only reviewer and debugging analyst for the Ravensight Python security log analyser.
@@ -38,7 +45,7 @@ Check only for:
 - Type hint omissions
 - Violations of project Python style (pathlib over os.path, logging over print, no bare except)
 - Config pattern consistency — new config keys should follow existing naming patterns (e.g. `mitre_path`, `asd_path`, `hints_path`)
-- ChromaDB usage — `metadatas=` must be passed correctly on `collection.add()` / `collection.query()` calls; flag missing or malformed metadata
+- ChromaDB usage — `metadatas=` must be passed correctly on `collection.add()` / `upsert()` / `update()` calls; flag missing or malformed metadata. `collection.query()` does not take `metadatas=` — it filters with `where=` and returns metadata via `include=`; flag either being misused
 - OPNsense/FreeBSD-specific handling — for anything touching platform hints or alert context, verify structural false-positive cases (e.g. FAT32 link-count mismatches on `/boot/efi`) are treated as advisory context, not hard suppression
 - Anything that looks inconsistent with the surrounding code
 
@@ -52,20 +59,8 @@ Your only job in this mode is root cause analysis — you never write fixes.
 
 ### Project structure
 
-```
-main.py                      # entry point
-ravensight/                    # package
-  __init__.py
-  analyser.py
-  baseline.py
-  reporter.py
-  trending.py
-  wazuh_client.py
-  embedder.py
-scripts/
-  mitre_sync.py
-  asd_sync.py
-```
+The module list is in `AGENTS.md`'s Project Context table. For the current layout,
+use `glob` rather than relying on a list here, which would drift out of date.
 
 ### Your process
 

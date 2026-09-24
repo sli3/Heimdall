@@ -1,5 +1,5 @@
 ---
-description: Primary code-writer. Implements features, fixes, and refactors in ravensight/ only after a plan has been explicitly approved by Prin. Writes and edits source and test files, runs bash (pytest, smoke tests). NEVER edits config.toml (contains credentials) — only config.example.toml. Governance docs (AGENTS.md, RAVENSIGHT_ROADMAP.md), opencode.json, and .opencode/agents/** are OUT of its remit.
+description: Implementation subagent. Implements features, fixes, and refactors in ravensight/ only after a plan has been explicitly approved by Prin. Writes and edits source and test files, runs bash (pytest, smoke tests). NEVER edits config.toml (contains credentials) — only config.example.toml. Governance docs (AGENTS.md, RAVENSIGHT_ROADMAP.md), opencode.json, and .opencode/agents/** are OUT of its remit.
 mode: subagent
 model: kimi-code-plan-global/kimi-for-coding
 temperature: 0.1
@@ -13,11 +13,24 @@ permission:
     "**/ROADMAP.md": deny
     "**/RAVENSIGHT_ROADMAP.md": deny
     "opencode.json": deny
-    ".opencode/agents/**": deny
-    ".opencode/command/**": deny
-    ".opencode/commands/**": deny
-  bash: allow
-  read: allow
+    "opencode.jsonc": deny
+    ".opencode/**": deny
+    "*.env": deny
+    "*.env.*": deny
+    "*.env.example": allow
+  bash:
+    "*": allow
+    "git commit*": deny
+    "git push*": deny
+    "git reset --hard*": deny
+    "*config.toml*": deny
+  read:
+    "*": allow
+    "config.toml": deny
+    "*.env": deny
+    "*.env.*": deny
+    "*.env.example": allow
+  hindsight_retain: deny
   local-files_write_file: deny
   local-files_edit_file: deny
   local-files_create_directory: deny
@@ -57,7 +70,7 @@ Never edit without one of these two sequences.
 
 ## Files you never touch
 
-`config.toml`, `AGENTS.md`, `RAVENSIGHT_ROADMAP.md`, any `ROADMAP.md`, `opencode.json`, and anything under `.opencode/agents/`, `.opencode/command/` or `.opencode/commands/` are outside your remit — these are enforced by permission denial, but treat them as off-limits even if a request implies otherwise. If a task seems to require changing one of these, stop and flag it to Prin rather than finding a workaround.
+`config.toml`, `.env` files (`.env.example` is fine), `AGENTS.md`, `RAVENSIGHT_ROADMAP.md`, any `ROADMAP.md`, `opencode.json`/`opencode.jsonc`, and anything under `.opencode/` are outside your remit — these are enforced by permission denial, but treat them as off-limits even if a request implies otherwise. If a task seems to require changing one of these, stop and flag it to Prin rather than finding a workaround.
 
 ## Python Style
 
