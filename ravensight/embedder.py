@@ -150,12 +150,21 @@ class Embedder:
 
         # Deterministic id: identical text overwrites itself instead of duplicating
         content_hash_id = "alert-" + sha256(text.encode("utf-8")).hexdigest()[:32]
-        self._collection.upsert(
-            ids=[content_hash_id],
-            embeddings=[embedding_list],
-            documents=[text],
-            metadatas=[metadata],
-        )
+        try:
+            self._collection.upsert(
+                ids=[content_hash_id],
+                embeddings=[embedding_list],
+                documents=[text],
+                metadatas=[metadata],
+            )
+        except (ChromaError, httpx.HTTPError, OSError) as e:
+            self._degraded = True
+            self._chroma_failure = _format_cause(e)
+            logger.warning(
+                f"ChromaDB unreachable mid-run ({type(e).__name__}: {e}) — "
+                "vector-store writes skipped for the remainder of this run"
+            )
+            raise
 
     def query_similar(self, query_text: str, top_k: int | None = None) -> list[dict[str, Any]]:
         """
@@ -181,10 +190,15 @@ class Embedder:
             else:
                 query_embedding_list = query_embedding.tolist()
 
-            results = self._collection.query(
-                query_embeddings=[query_embedding_list],
-                n_results=k,
-            )
+            try:
+                results = self._collection.query(
+                    query_embeddings=[query_embedding_list],
+                    n_results=k,
+                )
+            except (ChromaError, httpx.HTTPError, OSError) as e:
+                self._degraded = True
+                self._chroma_failure = _format_cause(e)
+                raise
 
             # Convert ChromaDB response to list of dicts
             retrieved: list[dict[str, Any]] = []
@@ -227,7 +241,7 @@ class Embedder:
         if not self.degraded and self._collection is not None:
             try:
                 self._collection.delete(where={"rule_group": "baseline_finding"})
-            except (ChromaError, httpx.HTTPError, ValueError) as e:
+            except (ChromaError, httpx.HTTPError, ValueError, OSError, KeyError) as e:
                 logger.warning(f"Failed to clear baseline findings from vector store: {e}")
 
         # Migrate findings
@@ -247,14 +261,14 @@ class Embedder:
             try:
                 self.add_embedding(str(finding), metadata)
                 count += 1
-            except (APIConnectionError, APITimeoutError, ValueError) as e:
+            except (APIConnectionError, APITimeoutError, ValueError, ChromaError, httpx.HTTPError, OSError) as e:
                 logger.warning(f"Failed to migrate finding: {e}")
                 break
 
         if not self.degraded and self._collection is not None:
             try:
                 self._collection.delete(where={"rule_group": "baseline_recommendation"})
-            except (ChromaError, httpx.HTTPError, ValueError) as e:
+            except (ChromaError, httpx.HTTPError, ValueError, OSError, KeyError) as e:
                 logger.warning(f"Failed to clear baseline recommendations from vector store: {e}")
 
         # Migrate recommendations
@@ -272,7 +286,7 @@ class Embedder:
             try:
                 self.add_embedding(str(rec), metadata)
                 count += 1
-            except (APIConnectionError, APITimeoutError, ValueError) as e:
+            except (APIConnectionError, APITimeoutError, ValueError, ChromaError, httpx.HTTPError, OSError) as e:
                 logger.warning(f"Failed to migrate recommendation: {e}")
                 break
 

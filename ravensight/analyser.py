@@ -7,6 +7,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import httpx
+from chromadb.errors import ChromaError
 from openai import OpenAI
 from openai import APIConnectionError, APIStatusError, APITimeoutError
 from tqdm import tqdm
@@ -270,8 +272,11 @@ def analyse(
         query_text = _summarise_alerts(alerts)
         try:
             similar = embedder.retrieve_similar(query_text)
-        except (APIConnectionError, APITimeoutError, ValueError) as e:
-            logger.warning(f"Embedding server unreachable ({e}) — similar-incident retrieval skipped for this run")
+        except (APIConnectionError, APITimeoutError, ValueError, ChromaError, httpx.HTTPError, OSError) as e:
+            logger.warning(
+                f"Similarity retrieval failed ({type(e).__name__}: {e}) — "
+                "similar-incident context skipped this run"
+            )
             similar = None
         if similar:
             formatted = []

@@ -8,6 +8,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any
 
+import httpx
+from chromadb.errors import ChromaError
 from openai import APIConnectionError, APITimeoutError
 
 logger = logging.getLogger(__name__)
@@ -89,8 +91,12 @@ class Manager:
                 }
                 try:
                     self._embedder.add_embedding(text, metadata)
-                except (APIConnectionError, APITimeoutError, ValueError) as e:
-                    logger.warning(f"Embedding server unreachable ({e}) — vector-store update skipped for this run")
+                except (APIConnectionError, APITimeoutError, ValueError, ChromaError, httpx.HTTPError, OSError) as e:
+                    logger.warning(
+                        f"Vector-store write failed ({type(e).__name__}: {e}) — "
+                        "skipping remaining rule-count writes this run"
+                    )
+                    break
 
         if rule_counts:
             snapshot = {

@@ -9,12 +9,14 @@ no real vector-store state is touched.
 import logging
 from hashlib import sha256
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import chromadb
 import pytest
 
 from main import _similar_incidents_note
+from ravensight import analyser, baseline
 from ravensight.embedder import Embedder
 
 MIGRATED_MSG = "Migrated {count} entries from baseline to vector store"
@@ -245,3 +247,160 @@ def test_similar_incidents_note_derivation(embedder: Embedder) -> None:
     assert _similar_incidents_note(embedder) == (
         "Similar Past Incidents: unavailable — ConnectError: connection refused"
     )
+
+
+def test_chroma_upsert_failure_mid_migration_degrades(
+    embedder: Embedder, monkeypatch: pytest.MonkeyPatch, caplog: Any
+) -> None:
+    """A Chroma upsert failure mid-migration degrades the embedder and stops the run."""
+    monkeypatch.setattr(Embedder, "encode", lambda self, text: [0.0] * 8)
+
+    upsert_calls: list[Any] = []
+    real_upsert = chromadb.Collection.upsert
+
+    def flaky_upsert(self: Any, **kwargs: Any) -> Any:
+        """Succeed twice, then fail as Chroma would mid-run."""
+        upsert_calls.append(kwargs)
+        if len(upsert_calls) > 2:
+            raise chromadb.errors.ChromaError("chroma vanished mid-run")
+        return real_upsert(self, **kwargs)
+
+    monkeypatch.setattr(chromadb.Collection, "upsert", flaky_upsert)
+    caplog.set_level(logging.WARNING, logger="ravensight.embedder")
+
+    result = embedder.migrate_baseline(_baseline_data(5, 2))
+
+    assert len(upsert_calls) == 3  # 2 successes + 1 raising call; recommendations loop never started
+    assert result == 2
+    assert embedder.degraded is True
+    assert embedder._chroma_failure is not None
+    assert any("ChromaDB unreachable mid-run" in rec.message for rec in caplog.records)
+
+
+def test_baseline_manager_update_survives_chroma_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: Any
+) -> None:
+    """A Chroma failure partway through rule_counts writes degrades but never crashes."""
+    emb = Embedder({"chroma_db_path": str(tmp_path / "chromadb")})
+    monkeypatch.setattr(Embedder, "encode", lambda self, text: [0.0] * 8)
+
+    baseline_path = tmp_path / "baseline.json"
+    manager = baseline.Manager({"path": str(baseline_path)}, embedder=emb)
+
+    rule_counts = {"rule-desc-1": 3, "rule-desc-2": 1, "rule-desc-3": 7}
+    real_upsert = chromadb.Collection.upsert
+
+    def flaky_upsert(self: Any, **kwargs: Any) -> Any:
+        """Fail only on the rule-desc-2 document."""
+        if "rule-desc-2" in kwargs["documents"][0]:
+            raise chromadb.errors.ChromaError("chroma vanished mid-run")
+        return real_upsert(self, **kwargs)
+
+    monkeypatch.setattr(chromadb.Collection, "upsert", flaky_upsert)
+    caplog.set_level(logging.WARNING, logger="ravensight.baseline")
+
+    manager.update({"findings": [], "recommendations": []}, rule_counts=rule_counts)
+
+    assert emb.degraded is True
+    assert baseline_path.exists()
+
+
+def test_query_similar_mid_run_failure_propagates_and_degrades(
+    embedder: Embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Chroma query failure propagates to the caller but flips degraded state first."""
+
+    def failing_query(self: Any, **kwargs: Any) -> Any:
+        """Raise as an unreachable Chroma server would."""
+        raise chromadb.errors.ChromaError("chroma vanished mid-run")
+
+    monkeypatch.setattr(Embedder, "encode", lambda self, text: [0.0] * 8)
+    monkeypatch.setattr(chromadb.Collection, "query", failing_query)
+
+    with pytest.raises(chromadb.errors.ChromaError):
+        embedder.query_similar("test query")
+
+    assert embedder.degraded is True
+    assert embedder._chroma_failure is not None
+
+
+def test_add_embedding_oserror_degrades(
+    embedder: Embedder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """OSError on upsert degrades the embedder (matches init-time OSError coverage)."""
+    monkeypatch.setattr(Embedder, "encode", lambda self, text: [0.0] * 8)
+
+    def failing_upsert(self: Any, **kwargs: Any) -> Any:
+        """Raise as Chroma would on a disk-full write."""
+        raise OSError("disk full")
+
+    monkeypatch.setattr(chromadb.Collection, "upsert", failing_upsert)
+
+    with pytest.raises(OSError):
+        embedder.add_embedding("anything", _metadata("anything"))
+
+    assert embedder.degraded is True
+    assert embedder._chroma_failure is not None
+
+
+def test_analyser_analyse_survives_chroma_failure_in_retrieve_similar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: Any
+) -> None:
+    """analyse() catches the Chroma failure from retrieve_similar and skips context."""
+    emb = Embedder({"chroma_db_path": str(tmp_path / "chromadb")})
+    monkeypatch.setattr(Embedder, "encode", lambda self, text: [0.0] * 8)
+
+    def failing_query(self: Any, **kwargs: Any) -> Any:
+        """Raise as an unreachable Chroma server would."""
+        raise chromadb.errors.ChromaError("chroma vanished mid-run")
+
+    monkeypatch.setattr(chromadb.Collection, "query", failing_query)
+
+    class FakeCompletions:
+        """Stand-in for OpenAI chat completions returning one parseable chunk."""
+
+        def create(self, **kwargs: Any) -> Any:
+            """Return a single streaming chunk with valid analysis text."""
+            chunk = SimpleNamespace(
+                choices=[SimpleNamespace(delta=SimpleNamespace(
+                    content="<findings>\n- Test finding\n</findings>\n"
+                    "<recommendations>\n- Test recommendation\n</recommendations>"
+                ))]
+            )
+            return iter([chunk])
+
+    class FakeChat:
+        """Stand-in for the chat attribute on an OpenAI client."""
+
+        def __init__(self) -> None:
+            self.completions = FakeCompletions()
+
+    class FakeOpenAI:
+        """Stand-in OpenAI client whose chat completions always return valid text."""
+
+        def __init__(self, **kwargs: Any) -> None:
+            self.chat = FakeChat()
+
+    monkeypatch.setattr(analyser, "OpenAI", FakeOpenAI)
+    caplog.set_level(logging.WARNING, logger="ravensight.analyser")
+
+    alerts = [
+        {
+            "_source": {
+                "agent": {"name": "host-1"},
+                "rule": {"id": "1002", "description": "Test rule", "level": 3},
+            }
+        }
+    ]
+    llm_config = {"base_url": "http://localhost:8000/v1", "api_key": "x", "model": "m"}
+
+    result = analyser.analyse(
+        alerts,
+        {},
+        llm_config,
+        embedder=emb,
+        platform_hints_path=str(tmp_path / "missing_hints.json"),
+    )
+
+    assert result.get("similar_incidents", "") == ""
+    assert any("Similarity retrieval failed" in rec.message for rec in caplog.records)
