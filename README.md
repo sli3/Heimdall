@@ -341,14 +341,16 @@ network; for a host process reaching into the published port, use
 ```
 usage: main.py [-h] [--config CONFIG] [--hours N] [--agent AGENT]
                 [--level LEVEL] [--log-level LEVEL] [--report-only]
+                [--no-progress]
 
 options:
   --config PATH    Path to config file (default: config.toml)
   --hours N        Analyse alerts from the last N hours (default: 24)
   --agent AGENT    Filter to a specific agent name or ID
   --level LEVEL    Minimum alert level to include (default: 7)
-  --log-level      Logging verbosity: DEBUG, INFO, WARNING, ERROR (default: INFO)
+  --log-level      Logging verbosity: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
   --report-only    Generate report from last baseline without re-querying Wazuh
+  --no-progress    Disable tqdm progress bars (e.g. for cron or log redirection)
 ```
 
 ### Example output
